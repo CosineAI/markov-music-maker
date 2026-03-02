@@ -24,10 +24,12 @@
   /** @type {number | null} */
   let intervalId = null;
   let stepIndex = 0;
+  let playbackRequestId = 0;
 
   const els = {
     tilesList: /** @type {HTMLElement} */ (document.getElementById('tiles-list')),
     createTileBtn: /** @type {HTMLButtonElement} */ (document.getElementById('create-tile')),
+    copyTileBtn: /** @type {HTMLButtonElement} */ (document.getElementById('copy-tile')),
     renameTileBtn: /** @type {HTMLButtonElement} */ (document.getElementById('rename-tile')),
     deleteTileBtn: /** @type {HTMLButtonElement} */ (document.getElementById('delete-tile')),
     startTileSelect: /** @type {HTMLSelectElement} */ (document.getElementById('start-tile-select')),
@@ -50,6 +52,11 @@
     gridMount: /** @type {HTMLElement} */ (document.getElementById('grid-mount')),
     transitionsTitle: /** @type {HTMLElement} */ (document.getElementById('transitions-title')),
     transitionsList: /** @type {HTMLElement} */ (document.getElementById('transitions-list')),
+
+    loopTileBtn: /** @type {HTMLButtonElement} */ (document.getElementById('loop-tile')),
+    chainGraph: /** @type {HTMLElement} */ (document.getElementById('chain-graph')),
+    chainCanvas: /** @type {HTMLCanvasElement} */ (document.getElementById('chain-canvas')),
+    chainNodes: /** @type {HTMLElement} */ (document.getElementById('chain-nodes')),
   };
 
   /**
@@ -65,6 +72,7 @@
    * @property {number} bpm
    * @property {string | null} startTileId
    * @property {string | null} activeTileId
+   * @property {string | null} loopTileId
    * @property {Tile[]} tiles
    */
 
@@ -73,6 +81,7 @@
     bpm: 120,
     startTileId: null,
     activeTileId: null,
+    loopTileId: null,
     tiles: [],
   };
 
@@ -381,12 +390,26 @@
     if (!tile) {
       els.activeTileBadge.textContent = '';
       els.activeTileId.textContent = '';
+      if (els.loopTileBtn) {
+        els.loopTileBtn.disabled = true;
+        els.loopTileBtn.classList.remove('is-active');
+        els.loopTileBtn.textContent = 'Loop tile';
+        els.loopTileBtn.setAttribute('aria-pressed', 'false');
+      }
       return;
     }
 
     els.activeTileBadge.textContent = tile.name;
     els.activeTileId.textContent = tile.id;
     els.transitionsTitle.textContent = `Transitions from “${tile.name}”`;
+
+    if (els.loopTileBtn) {
+      const isLooping = state.loopTileId === tile.id;
+      els.loopTileBtn.disabled = false;
+      els.loopTileBtn.classList.toggle('is-active', isLooping);
+      els.loopTileBtn.textContent = isLooping ? 'Stop tile' : 'Play tile';
+      els.loopTileBtn.setAttribute('aria-pressed', isLooping ? 'true' : 'false');
+    }
   }
 
   function setActiveTile(tileId, opts = {}) {
@@ -394,6 +417,7 @@
     if (!tile) return;
 
     state.activeTileId = tileId;
+    if (state.loopTileId) state.loopTileId = tileId;
 
     // If the user changes the tile while playing, keep the step index but re-render.
     if (!opts.skipRender) {
@@ -449,6 +473,211 @@
     }
   }
 
+  // --------------------- Markov Graph ---------------------
+
+  function renderChainNodes() {
+    if (!els.chainNodes) return;
+    els.chainNodes.replaceChildren();
+
+    for (const tile of state.tiles) {
+      const node = document.createElement('div');
+      node.className = 'chain-node';
+
+      if (tile.id === state.activeTileId) node.classList.add('is-active');
+      if (tile.id === state.startTileId) node.classList.add('is-start');
+
+      const title = document.createElement('div');
+      title.className = 'chain-node__title';
+      title.textContent = tile.name;
+
+      const chips = document.createElement('div');
+      chips.className = 'chain-node__chips';
+
+      if (tile.id === state.startTileId) {
+        const chip = document.createElement('span');
+        chip.className = 'chain-chip is-start';
+        chip.textContent = 'Start';
+        chips.appendChild(chip);
+      }
+
+      if (tile.id === state.activeTileId) {
+        const chip = document.createElement('span');
+        chip.className = 'chain-chip is-active';
+        chip.textContent = 'Active';
+        chips.appendChild(chip);
+      }
+
+      const totalWeight = Object.values(tile.transitions).reduce((sum, value) => sum + Math.max(0, Number(value) || 0), 0);
+      const meta = document.createElement('div');
+      meta.className = 'small muted';
+      meta.textContent = `Outgoing weight: ${totalWeight}`;
+
+      node.appendChild(title);
+      node.appendChild(chips);
+      node.appendChild(meta);
+
+      node.addEventListener('click', () => {
+        setActiveTile(tile.id);
+      });
+
+      els.chainNodes.appendChild(node);
+    }
+  }
+
+  function renderChainGraph() {
+    if (!els.chainCanvas || !els.chainGraph) return;
+
+    const rect = els.chainGraph.getBoundingClientRect();
+    const width = rect.width;
+    const height = rect.height;
+    if (width <= 0 || height <= 0) return;
+
+    const ctx = els.chainCanvas.getContext('2d');
+    if (!ctx) return;
+
+    const dpr = window.devicePixelRatio || 1;
+    const pxWidth = Math.floor(width * dpr);
+    const pxHeight = Math.floor(height * dpr);
+
+    if (els.chainCanvas.width !== pxWidth || els.chainCanvas.height !== pxHeight) {
+      els.chainCanvas.width = pxWidth;
+      els.chainCanvas.height = pxHeight;
+    }
+
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, width, height);
+
+    const count = state.tiles.length;
+    if (count === 0) return;
+
+    const paddingX = 46;
+    const paddingY = 34;
+    const availableWidth = Math.max(0, width - paddingX * 2);
+    const spacing = count > 1 ? availableWidth / (count - 1) : 0;
+    const maxRadius = 22;
+    const minRadius = 14;
+    const radius = Math.max(minRadius, Math.min(maxRadius, spacing > 0 ? spacing * 0.35 : maxRadius));
+    const centerY = height / 2;
+    const maxArc = Math.max(24, centerY - radius - paddingY);
+
+    const positions = state.tiles.map((_, i) => ({
+      x: count === 1 ? width / 2 : paddingX + spacing * i,
+      y: centerY,
+    }));
+
+    const weights = [];
+    for (const tile of state.tiles) {
+      for (const target of state.tiles) {
+        const weight = Math.max(0, Number(tile.transitions[target.id] || 0));
+        if (weight > 0) weights.push(weight);
+      }
+    }
+    const maxWeight = Math.max(1, ...weights);
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = '11px system-ui';
+
+    for (let i = 0; i < count; i++) {
+      const from = state.tiles[i];
+      const fromPos = positions[i];
+
+      for (let j = 0; j < count; j++) {
+        const to = state.tiles[j];
+        const weight = Math.max(0, Number(from.transitions[to.id] || 0));
+        if (weight <= 0) continue;
+
+        const strength = weight / maxWeight;
+        const alpha = 0.2 + 0.6 * strength;
+        const lineWidth = 1 + 2.2 * strength;
+        const color = from.id === state.activeTileId ? `rgba(245, 158, 11, ${alpha})` : `rgba(37, 99, 235, ${alpha})`;
+
+        if (i === j) {
+          const loopRadius = Math.min(radius * 1.1, maxArc - 6);
+          const loopCenterX = fromPos.x + radius * 0.9;
+          const loopCenterY = Math.max(paddingY + loopRadius + 6, centerY - loopRadius - radius * 0.6);
+          const startAngle = Math.PI * 0.2;
+          const endAngle = Math.PI * 1.85;
+
+          ctx.strokeStyle = color;
+          ctx.lineWidth = lineWidth;
+          ctx.beginPath();
+          ctx.arc(loopCenterX, loopCenterY, loopRadius, startAngle, endAngle);
+          ctx.stroke();
+
+          const arrowAngle = endAngle + Math.PI / 2;
+          const endX = loopCenterX + Math.cos(endAngle) * loopRadius;
+          const endY = loopCenterY + Math.sin(endAngle) * loopRadius;
+          const head = 5 + 4 * strength;
+          ctx.fillStyle = color;
+          ctx.beginPath();
+          ctx.moveTo(endX, endY);
+          ctx.lineTo(endX - head * Math.cos(arrowAngle - 0.5), endY - head * Math.sin(arrowAngle - 0.5));
+          ctx.lineTo(endX - head * Math.cos(arrowAngle + 0.5), endY - head * Math.sin(arrowAngle + 0.5));
+          ctx.closePath();
+          ctx.fill();
+
+          ctx.fillStyle = 'rgba(15, 23, 42, 0.7)';
+          ctx.fillText(String(weight), loopCenterX, loopCenterY - loopRadius - 10);
+          continue;
+        }
+
+        const direction = j > i ? 1 : -1;
+        const span = Math.abs(j - i);
+        const arcHeight = Math.min(maxArc, 18 + span * 12);
+        const startX = fromPos.x + direction * radius;
+        const endX = positions[j].x - direction * radius;
+        const controlX = (startX + endX) / 2;
+        const controlY = centerY - direction * arcHeight;
+
+        ctx.strokeStyle = color;
+        ctx.lineWidth = lineWidth;
+        ctx.beginPath();
+        ctx.moveTo(startX, centerY);
+        ctx.quadraticCurveTo(controlX, controlY, endX, centerY);
+        ctx.stroke();
+
+        const angle = Math.atan2(centerY - controlY, endX - controlX);
+        const head = 5 + 4 * strength;
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.moveTo(endX, centerY);
+        ctx.lineTo(endX - head * Math.cos(angle - 0.4), centerY - head * Math.sin(angle - 0.4));
+        ctx.lineTo(endX - head * Math.cos(angle + 0.4), centerY - head * Math.sin(angle + 0.4));
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.7)';
+        ctx.fillText(String(weight), controlX, controlY - direction * 10);
+      }
+    }
+
+    for (let i = 0; i < count; i++) {
+      const tile = state.tiles[i];
+      const pos = positions[i];
+      const isActive = tile.id === state.activeTileId;
+      const isStart = tile.id === state.startTileId;
+
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, radius, 0, Math.PI * 2);
+      ctx.fillStyle = isActive ? 'rgba(37, 99, 235, 0.95)' : '#ffffff';
+      ctx.fill();
+      ctx.lineWidth = isStart ? 2.5 : 1.5;
+      ctx.strokeStyle = isStart ? 'rgba(245, 158, 11, 0.9)' : 'rgba(37, 99, 235, 0.35)';
+      ctx.stroke();
+
+      const initials = tile.name.trim().slice(0, 2).toUpperCase();
+      ctx.fillStyle = isActive ? '#ffffff' : '#0f172a';
+      ctx.font = '12px system-ui';
+      ctx.fillText(initials, pos.x, pos.y);
+
+      const label = tile.name.length > 12 ? `${tile.name.slice(0, 10)}…` : tile.name;
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.7)';
+      ctx.font = '11px system-ui';
+      ctx.fillText(label, pos.x, pos.y + radius + 14);
+    }
+  }
+
   // --------------------- Markov Playback ---------------------
 
   function chooseNextTileId(fromTileId) {
@@ -471,7 +700,11 @@
   function renderPlaybackStatus() {
     const tile = getActiveTile();
     if (intervalId !== null) {
-      els.playbackStatus.textContent = tile ? `Playing: ${tile.name}` : 'Playing';
+      if (state.loopTileId && tile) {
+        els.playbackStatus.textContent = `Looping: ${tile.name}`;
+      } else {
+        els.playbackStatus.textContent = tile ? `Playing: ${tile.name}` : 'Playing';
+      }
     } else {
       els.playbackStatus.textContent = 'Stopped';
     }
@@ -506,6 +739,8 @@
   async function startPlayback() {
     if (intervalId !== null) return;
 
+    const requestId = ++playbackRequestId;
+
     ensureAudio();
     if (!audioCtx) return;
 
@@ -517,10 +752,12 @@
       }
     }
 
+    if (requestId !== playbackRequestId) return;
+
     // Always start from the start tile when you press Play
-    const startId = state.startTileId || state.tiles[0]?.id || null;
+    const startId = state.loopTileId || state.startTileId || state.tiles[0]?.id || null;
     if (startId) {
-      state.startTileId = startId;
+      if (!state.startTileId) state.startTileId = startId;
       state.activeTileId = startId;
     }
 
@@ -534,6 +771,7 @@
   }
 
   function stopPlayback() {
+    playbackRequestId += 1;
     if (intervalId !== null) {
       window.clearInterval(intervalId);
       intervalId = null;
@@ -555,6 +793,13 @@
     onLoopComplete: () => {
       const fromId = state.activeTileId;
       if (!fromId) return;
+
+      if (state.loopTileId) {
+        state.activeTileId = state.loopTileId;
+        renderAll();
+        return;
+      }
+
       const nextId = chooseNextTileId(fromId);
       if (nextId !== fromId) {
         state.activeTileId = nextId;
@@ -752,6 +997,7 @@
       bpm: clampInt(bpm, 30, 300),
       startTileId: startId,
       activeTileId: startId,
+      loopTileId: null,
       tiles,
     };
   }
@@ -854,6 +1100,36 @@
     scheduleUrlUpdate();
   }
 
+  function copyActiveTile() {
+    const tile = getActiveTile();
+    if (!tile) return;
+
+    const baseName = `${tile.name} Copy`;
+    const existing = new Set(state.tiles.map((t) => t.name));
+    let name = baseName;
+    let i = 2;
+    while (existing.has(name)) {
+      name = `${baseName} ${i}`;
+      i += 1;
+    }
+
+    const copy = createTile(name);
+    copy.grid = tile.grid.map((row) => row.slice());
+
+    state.tiles.push(copy);
+    ensureTransitionsComplete();
+
+    for (const t of state.tiles) {
+      if (t.id === copy.id) continue;
+      copy.transitions[t.id] = tile.transitions[t.id] ?? 0;
+    }
+    copy.transitions[copy.id] = tile.transitions[tile.id] ?? 0;
+
+    state.activeTileId = copy.id;
+    renderAll();
+    scheduleUrlUpdate();
+  }
+
   function deleteActiveTile() {
     if (state.tiles.length <= 1) {
       toast('Need at least 1 tile');
@@ -921,6 +1197,8 @@
     renderStartTileSelect();
     renderActiveTileHeader();
     renderTransitions();
+    renderChainNodes();
+    renderChainGraph();
     renderGrid();
     renderPlaybackStatus();
 
@@ -936,6 +1214,7 @@
       bpm: 120,
       startTileId: null,
       activeTileId: null,
+      loopTileId: null,
       tiles: [],
     };
 
@@ -986,8 +1265,31 @@
 
   function wireEvents() {
     els.createTileBtn.addEventListener('click', addTile);
+    els.copyTileBtn.addEventListener('click', copyActiveTile);
     els.renameTileBtn.addEventListener('click', renameActiveTile);
     els.deleteTileBtn.addEventListener('click', deleteActiveTile);
+
+    if (els.loopTileBtn) {
+      els.loopTileBtn.addEventListener('click', () => {
+        const tile = getActiveTile();
+        if (!tile) return;
+
+        if (state.loopTileId === tile.id) {
+          state.loopTileId = null;
+          stopPlayback();
+          renderAll();
+          return;
+        }
+
+        state.loopTileId = tile.id;
+        state.activeTileId = tile.id;
+        if (intervalId === null) {
+          startPlayback();
+        } else {
+          renderAll();
+        }
+      });
+    }
 
     els.startTileSelect.addEventListener('change', () => {
       const id = els.startTileSelect.value;
@@ -997,7 +1299,10 @@
       scheduleUrlUpdate();
     });
 
-    els.playBtn.addEventListener('click', startPlayback);
+    els.playBtn.addEventListener('click', () => {
+      state.loopTileId = null;
+      startPlayback();
+    });
     els.stopBtn.addEventListener('click', stopPlayback);
 
     els.copyShareUrlBtn.addEventListener('click', copyShareUrl);
@@ -1019,6 +1324,10 @@
 
     els.clearPatternBtn.addEventListener('click', clearActivePattern);
     els.randomizePatternBtn.addEventListener('click', randomizeActivePattern);
+
+    window.addEventListener('resize', () => {
+      renderChainGraph();
+    });
 
     window.addEventListener('hashchange', () => {
       // If user pastes a new URL hash, attempt load.
