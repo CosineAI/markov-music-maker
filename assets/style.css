@@ -107,9 +107,11 @@ main {
 }
 
 .seq-grid {
-  min-width: 820px;
+  --seq-track-col: 150px;
+  --seq-steps: 16;
+  min-width: max(680px, calc(var(--seq-track-col) + (var(--seq-steps) * 40px)));
   display: grid;
-  grid-template-columns: 150px repeat(16, 1fr);
+  grid-template-columns: var(--seq-track-col) repeat(var(--seq-steps), 1fr);
   gap: 0.45rem 0.45rem;
   align-items: center;
 }
@@ -283,6 +285,9 @@ main {
   padding: 0.55rem 0.65rem;
   background: #fff;
   font-size: 0.95rem;
+  width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
 }
 
 .badge {
@@ -324,6 +329,7 @@ main {
 
 .btn:focus-visible,
 .select:focus-visible,
+.input:focus-visible,
 .tempo__number:focus-visible,
 .weight-input:focus-visible,
 .tile-item:focus-visible,
@@ -417,6 +423,173 @@ main {
 .editor-actions {
   display: flex;
   gap: 0.55rem;
+}
+
+.tile-settings,
+.instrument-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 0.85rem;
+}
+
+.subsection {
+  border: 1px solid rgba(30, 41, 59, 0.1);
+  border-radius: 16px;
+  background: linear-gradient(180deg, #f8fafc, #ffffff);
+  padding: 0.75rem;
+}
+
+.subsection--collapsible {
+  padding: 0;
+}
+
+.subsection--collapsible > summary {
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+  padding: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.subsection--collapsible > summary::-webkit-details-marker {
+  display: none;
+}
+
+.subsection--collapsible > summary.subsection__title {
+  margin-bottom: 0;
+}
+
+.subsection--collapsible > summary::after {
+  content: '▸';
+  font-size: 0.95rem;
+  opacity: 0.65;
+  transform: rotate(0deg);
+  transition: transform 120ms ease;
+}
+
+.subsection--collapsible[open] > summary::after {
+  transform: rotate(90deg);
+}
+
+.subsection--collapsible[open] > summary {
+  border-bottom: 1px solid rgba(30, 41, 59, 0.08);
+}
+
+.subsection--collapsible > .subsection__content {
+  padding: 0.75rem;
+}
+
+.subsection__title {
+  font-weight: 650;
+  color: rgba(15, 23, 42, 0.85);
+  margin-bottom: 0.55rem;
+}
+
+.subsection__content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.inline-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: flex-end;
+}
+
+.input {
+  width: 100%;
+  padding: 0.55rem 0.6rem;
+  border-radius: 12px;
+  border: 1px solid rgba(22, 25, 32, 0.16);
+  font-size: 0.95rem;
+  background: #fff;
+  box-sizing: border-box;
+  min-width: 0;
+}
+.channel-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 120px 120px 110px;
+  gap: 0.55rem;
+  align-items: end;
+  padding: 0.65rem;
+  border-radius: 14px;
+  border: 1px solid rgba(30, 41, 59, 0.1);
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.channel-row__label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.channel-row .btn {
+  width: 100%;
+}
+
+.drone-row {
+  display: grid;
+  grid-template-columns: 110px 120px 120px 110px 110px;
+  gap: 0.55rem;
+  align-items: end;
+  padding: 0.65rem;
+  border-radius: 14px;
+  border: 1px solid rgba(30, 41, 59, 0.1);
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.drone-row__label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.drone-row .btn {
+  width: 100%;
+}
+
+@media (max-width: 920px) {
+  .channel-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+  }
+
+  .channel-row .js-track-remove {
+    grid-column: 1 / -1;
+  }
+
+  .drone-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+  }
+
+  .drone-row .js-drone-remove {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 520px) {
+  .channel-row {
+    grid-template-columns: 1fr;
+  }
+
+  .drone-row {
+    grid-template-columns: 1fr;
+  }
 }
 
 .grid-mount {
@@ -622,8 +795,8 @@ main {
   }
 
   .seq-grid {
-    min-width: 760px;
-    grid-template-columns: 130px repeat(16, 1fr);
+    --seq-track-col: 130px;
+    min-width: max(620px, calc(var(--seq-track-col) + (var(--seq-steps) * 36px)));
   }
 }
 
