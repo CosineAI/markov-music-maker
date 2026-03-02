@@ -529,7 +529,7 @@ main {
   transform: translateX(-50%) translateY(-6px);
 }
 
-@media (max-width: 950px) {
+@media (max-width: 820px) {
   body {
     overflow: auto;
   }
