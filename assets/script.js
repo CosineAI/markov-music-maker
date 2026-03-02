@@ -8,6 +8,8 @@
   const WAVEFORMS = /** @type {const} */ (['sine', 'square', 'triangle', 'sawtooth']);
   const NOTE_NAMES = /** @type {const} */ (['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']);
 
+  const DEFAULT_DRONE = { enabled: false, waveform: 'sine', midi: 48, volume: 0.18 };
+
   /** @type {null | AudioContext} */
   let audioCtx = null;
   /** @type {null | GainNode} */
@@ -91,11 +93,14 @@
    * @property {number} volume
    */
 
+  const DEFAULT_DRONE = { enabled: false, waveform: 'sine', midi: 48, volume: 0.18 };
+
   /**
    * @typedef Tile
    * @property {string} id
    * @property {string} name
    * @property {number} beats
+   * @property {DroneSettings} drone
    * @property {boolean[][]} grid
    * @property {Record<string, number>} transitions
    */
@@ -107,7 +112,6 @@
    * @property {string | null} activeTileId
    * @property {string | null} loopTileId
    * @property {Track[]} tracks
-   * @property {DroneSettings} drone
    * @property {Tile[]} tiles
    */
 
@@ -118,7 +122,6 @@
     activeTileId: null,
     loopTileId: null,
     tracks: [],
-    drone: { enabled: false, waveform: 'sine', midi: 48, volume: 0.18 },
     tiles: [],
   };
 
@@ -204,6 +207,22 @@
     return tracks;
   }
 
+  /** @returns {DroneSettings} */
+  function createDefaultDroneSettings() {
+    return { ...DEFAULT_DRONE };
+  }
+
+  /** @param {DroneSettings | undefined | null} drone */
+  function normalizeDroneSettings(drone) {
+    const d = drone || createDefaultDroneSettings();
+    return {
+      enabled: Boolean(d.enabled),
+      waveform: u8ToWaveform(waveformToU8(d.waveform)),
+      midi: clampInt(d.midi, 0, 127),
+      volume: clampFloat(d.volume, 0, 1),
+    };
+  }
+
   function stepsForBeats(beats) {
     return clampInt(beats, 1, MAX_BEATS_PER_TILE) * STEPS_PER_BEAT;
   }
@@ -231,6 +250,7 @@
     const trackCount = state.tracks.length;
     for (const tile of state.tiles) {
       tile.beats = clampInt(tile.beats, 1, MAX_BEATS_PER_TILE);
+      tile.drone = normalizeDroneSettings(tile.drone);
       const steps = stepsForTile(tile);
       tile.grid = resizeGrid(tile.grid, trackCount, steps);
     }
@@ -264,6 +284,7 @@
       id: uuid(),
       name,
       beats: b,
+      drone: createDefaultDroneSettings(),
       grid: createEmptyGrid(state.tracks.length, stepsForBeats(b)),
       transitions: {},
     };
@@ -421,18 +442,19 @@
     osc.stop(t + 0.2);
   }
 
-  function startDrone() {
+  /** @param {DroneSettings} drone */
+  function startDrone(drone) {
     if (!audioCtx || !masterGain) return;
     if (droneOsc || droneGain) return;
 
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
 
-    osc.type = state.drone.waveform;
-    osc.frequency.setValueAtTime(midiToFreq(state.drone.midi), audioCtx.currentTime);
+    osc.type = drone.waveform;
+    osc.frequency.setValueAtTime(midiToFreq(drone.midi), audioCtx.currentTime);
 
     gain.gain.setValueAtTime(0.0001, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(Math.max(0.0001, state.drone.volume), audioCtx.currentTime + 0.08);
+    gain.gain.exponentialRampToValueAtTime(Math.max(0.0001, drone.volume), audioCtx.currentTime + 0.08);
 
     osc.connect(gain);
     gain.connect(masterGain);
@@ -467,7 +489,10 @@
       return;
     }
 
-    if (!state.drone.enabled) {
+    const tile = getActiveTile();
+    const drone = tile ? normalizeDroneSettings(tile.drone) : null;
+
+    if (!drone || !drone.enabled) {
       stopDrone();
       return;
     }
@@ -475,14 +500,14 @@
     ensureAudio();
     if (!audioCtx) return;
 
-    if (!droneOsc || !droneGain) startDrone();
+    if (!droneOsc || !droneGain) startDrone(drone);
     if (!droneOsc || !droneGain) return;
 
     const t = audioCtx.currentTime;
-    droneOsc.type = state.drone.waveform;
-    droneOsc.frequency.setValueAtTime(midiToFreq(state.drone.midi), t);
+    droneOsc.type = drone.waveform;
+    droneOsc.frequency.setValueAtTime(midiToFreq(drone.midi), t);
     droneGain.gain.cancelScheduledValues(t);
-    droneGain.gain.setTargetAtTime(Math.max(0.0001, state.drone.volume), t, 0.03);
+    droneGain.gain.setTargetAtTime(Math.max(0.0001, drone.volume), t, 0.03);
   }
 
   function playStep(tile, step, t) {
@@ -545,6 +570,10 @@
   function renderInstrumentSettings() {
     if (!els.instrumentSettings) return;
 
+    const tile = getActiveTile();
+    const tileDrone = tile ? normalizeDroneSettings(tile.drone) : createDefaultDroneSettings();
+    const droneDisabledAttr = tile ? '' : 'disabled';
+
     const noteRows = state.tracks
       .filter((t) => t.kind === 'note')
       .map((t) => {
@@ -579,38 +608,39 @@
       .join('');
 
     const droneNoteOptions = NOTE_CHOICES.map((n) => {
-      const selected = n.midi === state.drone.midi ? 'selected' : '';
+      const selected = n.midi === tileDrone.midi ? 'selected' : '';
       return `<option value="${n.midi}" ${selected}>${n.name}</option>`;
     }).join('');
 
     const droneWaveOptions = WAVEFORMS.map((w) => {
-      const selected = w === state.drone.waveform ? 'selected' : '';
+      const selected = w === tileDrone.waveform ? 'selected' : '';
       return `<option value="${w}" ${selected}>${w}</option>`;
     }).join('');
 
     els.instrumentSettings.innerHTML = `
       <div class="subsection">
-        <div class="subsection__title">Drone</div>
+        <div class="subsection__title">Drone (per tile)</div>
         <div class="subsection__content">
+          ${tile ? '' : '<div class="small muted">Select a tile to edit drone settings.</div>'}
           <div class="inline-fields">
             <label class="field" style="min-width: 140px;">
               <span>Enabled</span>
-              <select id="droneEnabled" class="select">
-                <option value="0" ${state.drone.enabled ? '' : 'selected'}>Off</option>
-                <option value="1" ${state.drone.enabled ? 'selected' : ''}>On</option>
+              <select id="droneEnabled" class="select" ${droneDisabledAttr}>
+                <option value="0" ${tileDrone.enabled ? '' : 'selected'}>Off</option>
+                <option value="1" ${tileDrone.enabled ? 'selected' : ''}>On</option>
               </select>
             </label>
             <label class="field" style="min-width: 140px;">
               <span>Note</span>
-              <select id="droneNote" class="select">${droneNoteOptions}</select>
+              <select id="droneNote" class="select" ${droneDisabledAttr}>${droneNoteOptions}</select>
             </label>
             <label class="field" style="min-width: 140px;">
               <span>Wave</span>
-              <select id="droneWave" class="select">${droneWaveOptions}</select>
+              <select id="droneWave" class="select" ${droneDisabledAttr}>${droneWaveOptions}</select>
             </label>
             <label class="field" style="min-width: 120px;">
               <span>Volume</span>
-              <input id="droneVol" class="input" type="number" min="0" max="100" step="1" value="${Math.round(state.drone.volume * 100)}" />
+              <input id="droneVol" class="input" type="number" min="0" max="100" step="1" value="${Math.round(tileDrone.volume * 100)}" ${droneDisabledAttr} />
             </label>
           </div>
         </div>
@@ -636,27 +666,39 @@
     const volInput = /** @type {HTMLInputElement | null} */ (els.instrumentSettings.querySelector('#droneVol'));
 
     enabledSel?.addEventListener('change', () => {
-      state.drone.enabled = enabledSel.value === '1';
+      const t = getActiveTile();
+      if (!t) return;
+      t.drone.enabled = enabledSel.value === '1';
+      t.drone = normalizeDroneSettings(t.drone);
       syncDronePlayback();
       scheduleUrlUpdate();
     });
 
     noteSel?.addEventListener('change', () => {
-      state.drone.midi = clampInt(noteSel.value, 0, 127);
+      const t = getActiveTile();
+      if (!t) return;
+      t.drone.midi = clampInt(noteSel.value, 0, 127);
+      t.drone = normalizeDroneSettings(t.drone);
       syncDronePlayback();
       scheduleUrlUpdate();
     });
 
     waveSel?.addEventListener('change', () => {
-      state.drone.waveform = u8ToWaveform(waveformToU8(waveSel.value));
+      const t = getActiveTile();
+      if (!t) return;
+      t.drone.waveform = u8ToWaveform(waveformToU8(waveSel.value));
+      t.drone = normalizeDroneSettings(t.drone);
       syncDronePlayback();
       scheduleUrlUpdate();
     });
 
     volInput?.addEventListener('input', () => {
+      const t = getActiveTile();
+      if (!t) return;
       const v = clampInt(volInput.value, 0, 100);
       volInput.value = String(v);
-      state.drone.volume = clampFloat(v / 100, 0, 1);
+      t.drone.volume = clampFloat(v / 100, 0, 1);
+      t.drone = normalizeDroneSettings(t.drone);
       syncDronePlayback();
       scheduleUrlUpdate();
     });
@@ -861,6 +903,8 @@
 
     if (!opts.skipRender) {
       renderAll();
+    } else {
+      syncDronePlayback();
     }
 
     scheduleUrlUpdate();
@@ -1340,8 +1384,8 @@
   }
 
   function encodeState() {
-    // v2 binary format:
-    // [u8 version=2]
+    // v3 binary format:
+    // [u8 version=3]
     // [u16 bpm]
     // [u8 trackCount]
     // for each track:
@@ -1349,12 +1393,12 @@
     //   [u8 labelLen][labelBytes]
     //   if drum: [u8 drumType]
     //   if note: [u8 waveform][u8 midi]
-    // [drone: u8 enabled][u8 waveform][u8 midi][u8 volumePercent]
     // [u16 startIndex or 0xFFFF]
     // [u16 tileCount]
     // for each tile:
     //   [u8 nameLen][nameBytes]
     //   [u8 beats]
+    //   [drone: u8 enabled][u8 waveform][u8 midi][u8 volumePercent]
     //   [gridBytes]
     // transitions matrix: tileCount * tileCount * u16 weight
 
@@ -1366,7 +1410,7 @@
 
     const trackCount = clampInt(state.tracks.length, 1, 255);
 
-    w.u8(2);
+    w.u8(3);
     w.u16(clampInt(state.bpm, 30, 300));
     w.u8(trackCount);
 
@@ -1390,11 +1434,6 @@
       }
     }
 
-    w.u8(state.drone.enabled ? 1 : 0);
-    w.u8(waveformToU8(state.drone.waveform));
-    w.u8(clampInt(state.drone.midi, 0, 127));
-    w.u8(clampInt(Math.round(clampFloat(state.drone.volume, 0, 1) * 100), 0, 100));
-
     const tileCount = state.tiles.length;
     const startIndex = state.startTileId ? state.tiles.findIndex((t) => t.id === state.startTileId) : -1;
     w.u16(startIndex >= 0 ? startIndex : 0xffff);
@@ -1408,6 +1447,12 @@
 
       const beats = clampInt(t.beats, 1, MAX_BEATS_PER_TILE);
       w.u8(beats);
+
+      const drone = normalizeDroneSettings(t.drone);
+      w.u8(drone.enabled ? 1 : 0);
+      w.u8(waveformToU8(drone.waveform));
+      w.u8(clampInt(drone.midi, 0, 127));
+      w.u8(clampInt(Math.round(clampFloat(drone.volume, 0, 1) * 100), 0, 100));
 
       const steps = stepsForBeats(beats);
       const gb = gridToBytes(t.grid, trackCount, steps);
@@ -1451,6 +1496,7 @@
         id: uuid(),
         name,
         beats: 4,
+        drone: createDefaultDroneSettings(),
         grid: bytesToGrid(gridBytes, trackCount, steps),
         transitions: {},
       });
@@ -1471,7 +1517,6 @@
       activeTileId: startId,
       loopTileId: null,
       tracks,
-      drone: { enabled: false, waveform: 'sine', midi: 48, volume: 0.18 },
       tiles,
     };
   }
@@ -1501,10 +1546,12 @@
       }
     }
 
-    const droneEnabled = r.u8() === 1;
-    const droneWaveform = u8ToWaveform(r.u8());
-    const droneMidi = r.u8();
-    const droneVol = clampFloat(r.u8() / 100, 0, 1);
+    const globalDrone = normalizeDroneSettings({
+      enabled: r.u8() === 1,
+      waveform: u8ToWaveform(r.u8()),
+      midi: r.u8(),
+      volume: clampFloat(r.u8() / 100, 0, 1),
+    });
 
     const startIndex = r.u16();
     const tileCount = r.u16();
@@ -1527,6 +1574,7 @@
         id: uuid(),
         name,
         beats,
+        drone: { ...globalDrone },
         grid: bytesToGrid(gridBytes, trackCount, steps),
         transitions: {},
       });
@@ -1547,12 +1595,85 @@
       activeTileId: startId,
       loopTileId: null,
       tracks,
-      drone: {
-        enabled: droneEnabled,
-        waveform: droneWaveform,
-        midi: droneMidi,
-        volume: droneVol,
-      },
+      tiles,
+    };
+  }
+
+  function decodeStateV3(r, dec) {
+    const bpm = r.u16();
+    const trackCount = r.u8();
+
+    if (trackCount <= 0 || trackCount > 255) throw new Error('Invalid track count');
+
+    /** @type {Track[]} */
+    const tracks = [];
+
+    for (let i = 0; i < trackCount; i++) {
+      const kind = r.u8();
+      const labelLen = r.u8();
+      const labelBytes = r.take(labelLen);
+      const label = dec.decode(labelBytes) || `Track ${i + 1}`;
+
+      if (kind === 0) {
+        const drum = u8ToDrum(r.u8());
+        tracks.push({ id: uuid(), label, kind: 'drum', drum });
+      } else {
+        const waveform = u8ToWaveform(r.u8());
+        const midi = r.u8();
+        tracks.push({ id: uuid(), label, kind: 'note', midi, waveform });
+      }
+    }
+
+    const startIndex = r.u16();
+    const tileCount = r.u16();
+
+    if (tileCount <= 0 || tileCount > 200) throw new Error('Invalid tile count');
+
+    /** @type {Tile[]} */
+    const tiles = [];
+
+    for (let i = 0; i < tileCount; i++) {
+      const nameLen = r.u8();
+      const nameBytes = r.take(nameLen);
+      const name = dec.decode(nameBytes) || `Tile ${i + 1}`;
+
+      const beats = clampInt(r.u8(), 1, MAX_BEATS_PER_TILE);
+      const drone = normalizeDroneSettings({
+        enabled: r.u8() === 1,
+        waveform: u8ToWaveform(r.u8()),
+        midi: r.u8(),
+        volume: clampFloat(r.u8() / 100, 0, 1),
+      });
+
+      const steps = stepsForBeats(beats);
+      const gridByteLen = Math.ceil((trackCount * steps) / 8);
+      const gridBytes = r.take(gridByteLen);
+
+      tiles.push({
+        id: uuid(),
+        name,
+        beats,
+        drone,
+        grid: bytesToGrid(gridBytes, trackCount, steps),
+        transitions: {},
+      });
+    }
+
+    for (let i = 0; i < tileCount; i++) {
+      for (let j = 0; j < tileCount; j++) {
+        const wgt = r.u16();
+        tiles[i].transitions[tiles[j].id] = wgt;
+      }
+    }
+
+    const startId = startIndex !== 0xffff && startIndex < tiles.length ? tiles[startIndex].id : tiles[0].id;
+
+    return {
+      bpm: clampInt(bpm, 30, 300),
+      startTileId: startId,
+      activeTileId: startId,
+      loopTileId: null,
+      tracks,
       tiles,
     };
   }
@@ -1565,6 +1686,7 @@
     const version = r.u8();
     if (version === 1) return decodeStateV1(r, dec);
     if (version === 2) return decodeStateV2(r, dec);
+    if (version === 3) return decodeStateV3(r, dec);
 
     throw new Error(`Unsupported version ${version}`);
   }
@@ -1679,6 +1801,7 @@
     }
 
     const copy = createTile(name, tile.beats);
+    copy.drone = normalizeDroneSettings(tile.drone);
     copy.grid = tile.grid.map((row) => row.slice());
 
     state.tiles.push(copy);
@@ -1774,6 +1897,8 @@
 
     els.tempoRange.value = String(state.bpm);
     els.tempoNumber.value = String(state.bpm);
+
+    syncDronePlayback();
   }
 
   // --------------------- Init ---------------------
@@ -1785,7 +1910,6 @@
       activeTileId: null,
       loopTileId: null,
       tracks: createDefaultTracks(),
-      drone: { enabled: false, waveform: 'sine', midi: 48, volume: 0.18 },
       tiles: [],
     };
 
@@ -1924,7 +2048,6 @@
         activeTileId: null,
         loopTileId: null,
         tracks: createDefaultTracks(),
-        drone: { enabled: true, waveform: 'triangle', midi: 48, volume: 0.12 },
         tiles: [],
       };
 
@@ -1934,6 +2057,9 @@
       state.tiles.push(createTile('X', 3), createTile('Y', 5));
       state.startTileId = state.tiles[0].id;
       state.activeTileId = state.tiles[0].id;
+
+      state.tiles[0].drone = normalizeDroneSettings({ enabled: true, waveform: 'triangle', midi: 50, volume: 0.12 });
+      state.tiles[1].drone = normalizeDroneSettings({ enabled: true, waveform: 'sawtooth', midi: 55, volume: 0.2 });
 
       state.tiles[0].grid[0][0] = true;
       state.tiles[1].grid[2][3] = true;
@@ -1951,6 +2077,11 @@
       console.assert(after.bpm === 111, 'decode bpm');
       console.assert(after.tiles[0].beats === 3, 'decode beats');
       console.assert(after.tiles[1].beats === 5, 'decode beats');
+      console.assert(after.tiles[0].drone.enabled === true, 'decode drone enabled');
+      console.assert(after.tiles[0].drone.waveform === 'triangle', 'decode drone waveform');
+      console.assert(after.tiles[0].drone.midi === 50, 'decode drone midi');
+      console.assert(after.tiles[1].drone.waveform === 'sawtooth', 'decode drone waveform');
+      console.assert(after.tiles[1].drone.midi === 55, 'decode drone midi');
       console.assert(after.tiles[0].grid[0][0] === true, 'grid bit preserved');
       console.assert(after.tiles[1].grid[2][3] === true, 'grid bit preserved');
       console.assert(after.tracks.length === state.tracks.length, 'decode track count');
