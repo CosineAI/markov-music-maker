@@ -410,9 +410,10 @@ main {
   border: 1px dashed rgba(148, 163, 184, 0.7);
   border-radius: 16px;
   background: radial-gradient(circle at top, rgba(226, 232, 240, 0.65), rgba(255, 255, 255, 0.95));
-  padding: 0.75rem;
-  height: clamp(240px, 38vh, 360px);
+  padding: 1rem;
+  height: clamp(220px, 32vh, 320px);
   box-sizing: border-box;
+  overflow: hidden;
 }
 
 .chain-graph canvas {

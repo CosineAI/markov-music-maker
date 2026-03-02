@@ -527,21 +527,23 @@
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, width, height);
 
-    if (state.tiles.length === 0) return;
+    const count = state.tiles.length;
+    if (count === 0) return;
 
-    const nodeRadius = 22;
-    const padding = 38;
-    const radius = Math.max(40, Math.min(width, height) / 2 - padding);
-    const centerX = width / 2;
+    const paddingX = 46;
+    const paddingY = 34;
+    const availableWidth = Math.max(0, width - paddingX * 2);
+    const spacing = count > 1 ? availableWidth / (count - 1) : 0;
+    const maxRadius = 22;
+    const minRadius = 14;
+    const radius = Math.max(minRadius, Math.min(maxRadius, spacing > 0 ? spacing * 0.35 : maxRadius));
     const centerY = height / 2;
+    const maxArc = Math.max(24, centerY - radius - paddingY);
 
-    const positions = state.tiles.map((_, i) => {
-      const angle = (Math.PI * 2 * i) / state.tiles.length - Math.PI / 2;
-      return {
-        x: centerX + Math.cos(angle) * radius,
-        y: centerY + Math.sin(angle) * radius,
-      };
-    });
+    const positions = state.tiles.map((_, i) => ({
+      x: count === 1 ? width / 2 : paddingX + spacing * i,
+      y: centerY,
+    }));
 
     const weights = [];
     for (const tile of state.tiles) {
@@ -552,15 +554,15 @@
     }
     const maxWeight = Math.max(1, ...weights);
 
-    ctx.font = '12px system-ui';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
+    ctx.font = '11px system-ui';
 
-    for (let i = 0; i < state.tiles.length; i++) {
+    for (let i = 0; i < count; i++) {
       const from = state.tiles[i];
       const fromPos = positions[i];
 
-      for (let j = 0; j < state.tiles.length; j++) {
+      for (let j = 0; j < count; j++) {
         const to = state.tiles[j];
         const weight = Math.max(0, Number(from.transitions[to.id] || 0));
         if (weight <= 0) continue;
@@ -568,71 +570,61 @@
         const strength = weight / maxWeight;
         const alpha = 0.2 + 0.6 * strength;
         const lineWidth = 1 + 2.2 * strength;
+        const color = from.id === state.activeTileId ? `rgba(245, 158, 11, ${alpha})` : `rgba(37, 99, 235, ${alpha})`;
 
         if (i === j) {
-          const loopRadius = nodeRadius + 12;
-          ctx.strokeStyle = `rgba(37, 99, 235, ${alpha})`;
+          const loopRadius = radius + 10;
+          const loopCenterY = Math.max(paddingY + loopRadius, centerY - Math.min(maxArc, loopRadius + 14));
+          ctx.strokeStyle = color;
           ctx.lineWidth = lineWidth;
           ctx.beginPath();
-          ctx.arc(fromPos.x + loopRadius, fromPos.y - loopRadius, loopRadius, 0.2, Math.PI * 1.6);
+          ctx.arc(fromPos.x, loopCenterY, loopRadius, 0.15, Math.PI * 1.85);
           ctx.stroke();
 
           ctx.fillStyle = 'rgba(15, 23, 42, 0.7)';
-          ctx.fillText(String(weight), fromPos.x + loopRadius * 1.15, fromPos.y - loopRadius * 1.1);
+          ctx.fillText(String(weight), fromPos.x + loopRadius * 0.65, loopCenterY - loopRadius - 6);
           continue;
         }
 
-        const toPos = positions[j];
-        const dx = toPos.x - fromPos.x;
-        const dy = toPos.y - fromPos.y;
-        const dist = Math.max(1, Math.hypot(dx, dy));
-        const ux = dx / dist;
-        const uy = dy / dist;
+        const direction = j > i ? 1 : -1;
+        const span = Math.abs(j - i);
+        const arcHeight = Math.min(maxArc, 18 + span * 12);
+        const startX = fromPos.x + direction * radius;
+        const endX = positions[j].x - direction * radius;
+        const controlX = (startX + endX) / 2;
+        const controlY = centerY - direction * arcHeight;
 
-        const reverseWeight = Math.max(0, Number(state.tiles[j].transitions[from.id] || 0));
-        const offset = reverseWeight > 0 ? (i < j ? 8 : -8) : 0;
-        const ox = -uy * offset;
-        const oy = ux * offset;
-
-        const startX = fromPos.x + ux * nodeRadius + ox;
-        const startY = fromPos.y + uy * nodeRadius + oy;
-        const endX = toPos.x - ux * nodeRadius + ox;
-        const endY = toPos.y - uy * nodeRadius + oy;
-
-        const color = from.id === state.activeTileId ? `rgba(245, 158, 11, ${alpha})` : `rgba(37, 99, 235, ${alpha})`;
         ctx.strokeStyle = color;
         ctx.lineWidth = lineWidth;
         ctx.beginPath();
-        ctx.moveTo(startX, startY);
-        ctx.lineTo(endX, endY);
+        ctx.moveTo(startX, centerY);
+        ctx.quadraticCurveTo(controlX, controlY, endX, centerY);
         ctx.stroke();
 
-        const angle = Math.atan2(dy, dx);
-        const head = 6 + 5 * strength;
+        const angle = Math.atan2(centerY - controlY, endX - controlX);
+        const head = 5 + 4 * strength;
         ctx.fillStyle = color;
         ctx.beginPath();
-        ctx.moveTo(endX, endY);
-        ctx.lineTo(endX - head * Math.cos(angle - 0.35), endY - head * Math.sin(angle - 0.35));
-        ctx.lineTo(endX - head * Math.cos(angle + 0.35), endY - head * Math.sin(angle + 0.35));
+        ctx.moveTo(endX, centerY);
+        ctx.lineTo(endX - head * Math.cos(angle - 0.4), centerY - head * Math.sin(angle - 0.4));
+        ctx.lineTo(endX - head * Math.cos(angle + 0.4), centerY - head * Math.sin(angle + 0.4));
         ctx.closePath();
         ctx.fill();
 
-        const labelX = (startX + endX) / 2 + -uy * 10;
-        const labelY = (startY + endY) / 2 + ux * 10;
         ctx.fillStyle = 'rgba(15, 23, 42, 0.7)';
-        ctx.fillText(String(weight), labelX, labelY);
+        ctx.fillText(String(weight), controlX, controlY - direction * 10);
       }
     }
 
-    for (let i = 0; i < state.tiles.length; i++) {
+    for (let i = 0; i < count; i++) {
       const tile = state.tiles[i];
       const pos = positions[i];
       const isActive = tile.id === state.activeTileId;
       const isStart = tile.id === state.startTileId;
 
       ctx.beginPath();
-      ctx.arc(pos.x, pos.y, nodeRadius, 0, Math.PI * 2);
-      ctx.fillStyle = isActive ? 'rgba(37, 99, 235, 0.9)' : '#ffffff';
+      ctx.arc(pos.x, pos.y, radius, 0, Math.PI * 2);
+      ctx.fillStyle = isActive ? 'rgba(37, 99, 235, 0.95)' : '#ffffff';
       ctx.fill();
       ctx.lineWidth = isStart ? 2.5 : 1.5;
       ctx.strokeStyle = isStart ? 'rgba(245, 158, 11, 0.9)' : 'rgba(37, 99, 235, 0.35)';
@@ -643,10 +635,10 @@
       ctx.font = '12px system-ui';
       ctx.fillText(initials, pos.x, pos.y);
 
-      const label = tile.name.length > 14 ? `${tile.name.slice(0, 12)}…` : tile.name;
+      const label = tile.name.length > 12 ? `${tile.name.slice(0, 10)}…` : tile.name;
       ctx.fillStyle = 'rgba(15, 23, 42, 0.7)';
       ctx.font = '11px system-ui';
-      ctx.fillText(label, pos.x, pos.y + nodeRadius + 14);
+      ctx.fillText(label, pos.x, pos.y + radius + 14);
     }
   }
 
