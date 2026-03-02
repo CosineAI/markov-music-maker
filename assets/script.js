@@ -1174,11 +1174,16 @@
         const color = from.id === state.activeTileId ? `rgba(245, 158, 11, ${alpha})` : `rgba(37, 99, 235, ${alpha})`;
 
         if (i === j) {
-          const loopRadius = Math.min(radius * 1.1, maxArc - 6);
+          const loopRadius = Math.min(radius * 0.8, maxArc);
           const loopCenterX = fromPos.x;
-          const loopCenterY = Math.min(height - paddingY - loopRadius - 6, centerY + loopRadius + radius * 0.6);
-          const startAngle = (Math.PI / 180) * 60;
-          const endAngle = (Math.PI / 180) * 120;
+
+          const desiredCenterY = fromPos.y + radius * 1.55;
+          const minCenterY = fromPos.y + radius * 0.9;
+          const maxCenterY = height - paddingY - loopRadius - 18;
+          const loopCenterY = maxCenterY >= minCenterY ? clampFloat(desiredCenterY, minCenterY, maxCenterY) : desiredCenterY;
+
+          const startAngle = Math.PI / 3; // 60deg
+          const endAngle = (2 * Math.PI) / 3; // 120deg
 
           ctx.strokeStyle = color;
           ctx.lineWidth = lineWidth;
@@ -1199,7 +1204,7 @@
           ctx.fill();
 
           ctx.fillStyle = 'rgba(15, 23, 42, 0.7)';
-          ctx.fillText(String(weight), loopCenterX, loopCenterY + loopRadius + 12);
+          ctx.fillText(String(weight), loopCenterX, Math.min(height - paddingY - 6, loopCenterY + loopRadius + 12));
           continue;
         }
 
