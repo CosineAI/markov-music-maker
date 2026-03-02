@@ -1175,10 +1175,10 @@
 
         if (i === j) {
           const loopRadius = Math.min(radius * 1.1, maxArc - 6);
-          const loopCenterX = fromPos.x + radius * 0.9;
-          const loopCenterY = Math.max(paddingY + loopRadius + 6, centerY - loopRadius - radius * 0.6);
-          const startAngle = Math.PI * 0.2;
-          const endAngle = Math.PI * 1.85;
+          const loopCenterX = fromPos.x;
+          const loopCenterY = Math.min(height - paddingY - loopRadius - 6, centerY + loopRadius + radius * 0.6);
+          const startAngle = (Math.PI / 180) * 60;
+          const endAngle = (Math.PI / 180) * 120;
 
           ctx.strokeStyle = color;
           ctx.lineWidth = lineWidth;
@@ -1199,7 +1199,7 @@
           ctx.fill();
 
           ctx.fillStyle = 'rgba(15, 23, 42, 0.7)';
-          ctx.fillText(String(weight), loopCenterX, loopCenterY - loopRadius - 10);
+          ctx.fillText(String(weight), loopCenterX, loopCenterY + loopRadius + 12);
           continue;
         }
 
