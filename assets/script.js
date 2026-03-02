@@ -51,6 +51,7 @@
     transitionsTitle: /** @type {HTMLElement} */ (document.getElementById('transitions-title')),
     transitionsList: /** @type {HTMLElement} */ (document.getElementById('transitions-list')),
 
+    loopTileBtn: /** @type {HTMLButtonElement} */ (document.getElementById('loop-tile')),
     chainGraph: /** @type {HTMLElement} */ (document.getElementById('chain-graph')),
     chainCanvas: /** @type {HTMLCanvasElement} */ (document.getElementById('chain-canvas')),
     chainNodes: /** @type {HTMLElement} */ (document.getElementById('chain-nodes')),
@@ -69,6 +70,7 @@
    * @property {number} bpm
    * @property {string | null} startTileId
    * @property {string | null} activeTileId
+   * @property {string | null} loopTileId
    * @property {Tile[]} tiles
    */
 
@@ -77,6 +79,7 @@
     bpm: 120,
     startTileId: null,
     activeTileId: null,
+    loopTileId: null,
     tiles: [],
   };
 
@@ -385,12 +388,26 @@
     if (!tile) {
       els.activeTileBadge.textContent = '';
       els.activeTileId.textContent = '';
+      if (els.loopTileBtn) {
+        els.loopTileBtn.disabled = true;
+        els.loopTileBtn.classList.remove('is-active');
+        els.loopTileBtn.textContent = 'Loop tile';
+        els.loopTileBtn.setAttribute('aria-pressed', 'false');
+      }
       return;
     }
 
     els.activeTileBadge.textContent = tile.name;
     els.activeTileId.textContent = tile.id;
     els.transitionsTitle.textContent = `Transitions from “${tile.name}”`;
+
+    if (els.loopTileBtn) {
+      const isLooping = state.loopTileId === tile.id;
+      els.loopTileBtn.disabled = false;
+      els.loopTileBtn.classList.toggle('is-active', isLooping);
+      els.loopTileBtn.textContent = isLooping ? 'Stop looping' : 'Loop tile';
+      els.loopTileBtn.setAttribute('aria-pressed', isLooping ? 'true' : 'false');
+    }
   }
 
   function setActiveTile(tileId, opts = {}) {
@@ -398,6 +415,7 @@
     if (!tile) return;
 
     state.activeTileId = tileId;
+    if (state.loopTileId) state.loopTileId = tileId;
 
     // If the user changes the tile while playing, keep the step index but re-render.
     if (!opts.skipRender) {
@@ -680,7 +698,11 @@
   function renderPlaybackStatus() {
     const tile = getActiveTile();
     if (intervalId !== null) {
-      els.playbackStatus.textContent = tile ? `Playing: ${tile.name}` : 'Playing';
+      if (state.loopTileId && tile) {
+        els.playbackStatus.textContent = `Looping: ${tile.name}`;
+      } else {
+        els.playbackStatus.textContent = tile ? `Playing: ${tile.name}` : 'Playing';
+      }
     } else {
       els.playbackStatus.textContent = 'Stopped';
     }
@@ -727,9 +749,9 @@
     }
 
     // Always start from the start tile when you press Play
-    const startId = state.startTileId || state.tiles[0]?.id || null;
+    const startId = state.loopTileId || state.startTileId || state.tiles[0]?.id || null;
     if (startId) {
-      state.startTileId = startId;
+      if (!state.startTileId) state.startTileId = startId;
       state.activeTileId = startId;
     }
 
@@ -764,6 +786,13 @@
     onLoopComplete: () => {
       const fromId = state.activeTileId;
       if (!fromId) return;
+
+      if (state.loopTileId) {
+        state.activeTileId = state.loopTileId;
+        renderAll();
+        return;
+      }
+
       const nextId = chooseNextTileId(fromId);
       if (nextId !== fromId) {
         state.activeTileId = nextId;
@@ -961,6 +990,7 @@
       bpm: clampInt(bpm, 30, 300),
       startTileId: startId,
       activeTileId: startId,
+      loopTileId: null,
       tiles,
     };
   }
@@ -1147,6 +1177,7 @@
       bpm: 120,
       startTileId: null,
       activeTileId: null,
+      loopTileId: null,
       tiles: [],
     };
 
@@ -1199,6 +1230,15 @@
     els.createTileBtn.addEventListener('click', addTile);
     els.renameTileBtn.addEventListener('click', renameActiveTile);
     els.deleteTileBtn.addEventListener('click', deleteActiveTile);
+
+    if (els.loopTileBtn) {
+      els.loopTileBtn.addEventListener('click', () => {
+        const tile = getActiveTile();
+        if (!tile) return;
+        state.loopTileId = state.loopTileId === tile.id ? null : tile.id;
+        renderAll();
+      });
+    }
 
     els.startTileSelect.addEventListener('change', () => {
       const id = els.startTileSelect.value;
