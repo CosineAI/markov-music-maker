@@ -465,7 +465,6 @@ main {
   font-size: 0.95rem;
   background: #fff;
 }
-
 .channel-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(140px, 0.6fr) minmax(140px, 0.6fr) 110px;
@@ -484,6 +483,24 @@ main {
   width: 100%;
 }
 
+.drone-row {
+  display: grid;
+  grid-template-columns: minmax(0, 0.6fr) minmax(140px, 0.7fr) minmax(140px, 0.7fr) minmax(120px, 0.55fr) 110px;
+  gap: 0.55rem;
+  align-items: end;
+}
+
+.drone-row__label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.drone-row .btn {
+  width: 100%;
+}
+
 @media (max-width: 920px) {
   .channel-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -493,10 +510,23 @@ main {
   .channel-row .js-track-remove {
     grid-column: 1 / -1;
   }
+
+  .drone-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+  }
+
+  .drone-row .js-drone-remove {
+    grid-column: 1 / -1;
+  }
 }
 
 @media (max-width: 520px) {
   .channel-row {
+    grid-template-columns: 1fr;
+  }
+
+  .drone-row {
     grid-template-columns: 1fr;
   }
 }
