@@ -1,8 +1,11 @@
 (() => {
   'use strict';
 
-  const STEPS_PER_BEAT = 4;
+  const LEGACY_STEPS_PER_BEAT = 4;
+  const DEFAULT_STEPS_PER_BEAT = 1;
+  const MAX_STEPS_PER_BEAT = 12;
   const MAX_BEATS_PER_TILE = 32;
+
   const DRUM_TRACK_COUNT = 3;
 
   const WAVEFORMS = /** @type {const} */ (['sine', 'square', 'triangle', 'sawtooth']);
@@ -109,6 +112,7 @@
   /**
    * @typedef AppState
    * @property {number} bpm
+   * @property {number} stepsPerBeat
    * @property {string | null} startTileId
    * @property {string | null} activeTileId
    * @property {string | null} loopTileId
@@ -119,6 +123,7 @@
   /** @type {AppState} */
   let state = {
     bpm: 120,
+    stepsPerBeat: DEFAULT_STEPS_PER_BEAT,
     startTileId: null,
     activeTileId: null,
     loopTileId: null,
@@ -234,12 +239,16 @@
     return fallback.map((d) => normalizeDroneSettings(/** @type {any} */ (d)));
   }
 
-  function stepsForBeats(beats) {
-    return clampInt(beats, 1, MAX_BEATS_PER_TILE) * STEPS_PER_BEAT;
+  function getStepsPerBeat() {
+    return clampInt(state.stepsPerBeat, 1, MAX_STEPS_PER_BEAT);
+  }
+
+  function stepsForBeats(beats, stepsPerBeat = getStepsPerBeat()) {
+    return clampInt(beats, 1, MAX_BEATS_PER_TILE) * clampInt(stepsPerBeat, 1, MAX_STEPS_PER_BEAT);
   }
 
   function stepsForTile(tile) {
-    return stepsForBeats(tile.beats);
+    return stepsForBeats(tile.beats, getStepsPerBeat());
   }
 
   function createEmptyGrid(trackCount, steps) {
@@ -583,8 +592,6 @@
     const tile = getActiveTile();
     if (!tile || !els.tileSettings) return;
 
-    const steps = stepsForTile(tile);
-
     els.tileSettings.innerHTML = `
       <div class="subsection">
         <div class="subsection__title">Tile</div>
@@ -593,19 +600,40 @@
             <span>Beats per tile</span>
             <input id="tileBeats" class="input" type="number" min="1" max="${MAX_BEATS_PER_TILE}" value="${tile.beats}" />
           </label>
+          <label class="field" style="min-width: 160px; max-width: 220px;">
+            <span>Steps per beat</span>
+            <input id="stepsPerBeat" class="input" type="number" min="1" max="${MAX_STEPS_PER_BEAT}" value="${getStepsPerBeat()}" />
+          </label>
         </div>
       </div>
     `;
 
-    const input = /** @type {HTMLInputElement | null} */ (els.tileSettings.querySelector('#tileBeats'));
-    if (!input) return;
+    const beatsInput = /** @type {HTMLInputElement | null} */ (els.tileSettings.querySelector('#tileBeats'));
+    const spbInput = /** @type {HTMLInputElement | null} */ (els.tileSettings.querySelector('#stepsPerBeat'));
 
-    input.addEventListener('input', () => {
+    beatsInput?.addEventListener('input', () => {
       const t = getActiveTile();
       if (!t) return;
-      const next = clampInt(input.value, 1, MAX_BEATS_PER_TILE);
-      input.value = String(next);
+      const next = clampInt(beatsInput.value, 1, MAX_BEATS_PER_TILE);
+      beatsInput.value = String(next);
       setTileBeats(t, next);
+      renderGrid();
+      scheduleUrlUpdate();
+    });
+
+    spbInput?.addEventListener('input', () => {
+      const next = clampInt(spbInput.value, 1, MAX_STEPS_PER_BEAT);
+      spbInput.value = String(next);
+      state.stepsPerBeat = next;
+
+      ensureTileGrids();
+
+      const t = getActiveTile();
+      if (intervalId !== null && t) {
+        stepIndex = stepIndex % stepsForTile(t);
+        updatePlaybackSpeed();
+      }
+
       renderGrid();
       scheduleUrlUpdate();
     });
@@ -858,6 +886,7 @@
     if (!tile || !gridContainer) return;
 
     const steps = stepsForTile(tile);
+    const stepsPerBeat = getStepsPerBeat();
 
     const gridEl = document.createElement('div');
     gridEl.className = 'seq-grid';
@@ -892,7 +921,7 @@
 
         if (tile.grid[r][s]) btn.classList.add('is-active');
         if (playheadStep !== null && s === playheadStep) btn.classList.add('is-playhead');
-        if (s % STEPS_PER_BEAT === 0) btn.classList.add('is-downbeat');
+        if (stepsPerBeat > 1 && s % stepsPerBeat === 0) btn.classList.add('is-downbeat');
 
         btn.addEventListener('click', () => {
           const t = getActiveTile();
@@ -1348,7 +1377,7 @@
 
     stepIndex = 0;
 
-    const stepMs = () => (60_000 / state.bpm) / 4;
+    const stepMs = () => (60_000 / state.bpm) / getStepsPerBeat();
     intervalId = window.setInterval(tick, stepMs());
 
     renderAll();
@@ -1372,7 +1401,7 @@
   function updatePlaybackSpeed() {
     if (intervalId === null) return;
     window.clearInterval(intervalId);
-    intervalId = window.setInterval(tick, (60_000 / state.bpm) / 4);
+    intervalId = window.setInterval(tick, (60_000 / state.bpm) / getStepsPerBeat());
   }
 
   const TileMarkov = {
@@ -1514,8 +1543,9 @@
 
     const trackCount = clampInt(state.tracks.length, 1, 255);
 
-    w.u8(4);
+    w.u8(5);
     w.u16(clampInt(state.bpm, 30, 300));
+    w.u8(clampInt(getStepsPerBeat(), 1, MAX_STEPS_PER_BEAT));
     w.u8(trackCount);
 
     for (let i = 0; i < trackCount; i++) {
@@ -1583,6 +1613,7 @@
 
   function decodeStateV1(r, dec) {
     const bpm = r.u16();
+    const stepsPerBeat = LEGACY_STEPS_PER_BEAT;
     const startIndex = r.u16();
     const tileCount = r.u16();
 
@@ -1623,6 +1654,7 @@
 
     return {
       bpm: clampInt(bpm, 30, 300),
+      stepsPerBeat,
       startTileId: startId,
       activeTileId: startId,
       loopTileId: null,
@@ -1633,6 +1665,7 @@
 
   function decodeStateV2(r, dec) {
     const bpm = r.u16();
+    const stepsPerBeat = LEGACY_STEPS_PER_BEAT;
     const trackCount = r.u8();
 
     if (trackCount <= 0 || trackCount > 255) throw new Error('Invalid track count');
@@ -1676,7 +1709,7 @@
       const nameBytes = r.take(nameLen);
       const name = dec.decode(nameBytes) || `Tile ${i + 1}`;
       const beats = clampInt(r.u8(), 1, MAX_BEATS_PER_TILE);
-      const steps = stepsForBeats(beats);
+      const steps = stepsForBeats(beats, stepsPerBeat);
       const gridByteLen = Math.ceil((trackCount * steps) / 8);
       const gridBytes = r.take(gridByteLen);
 
@@ -1701,6 +1734,7 @@
 
     return {
       bpm: clampInt(bpm, 30, 300),
+      stepsPerBeat,
       startTileId: startId,
       activeTileId: startId,
       loopTileId: null,
@@ -1709,7 +1743,7 @@
     };
   }
 
-  function decodeStateV3(r, dec) {
+ eV3(r, dec) {
     const bpm = r.u16();
     const trackCount = r.u8();
 
@@ -1755,7 +1789,7 @@
         volume: clampFloat(r.u8() / 100, 0, 1),
       });
 
-      const steps = stepsForBeats(beats);
+      const steps = stepsForBeats(beats, stepsPerBeat);
       const gridByteLen = Math.ceil((trackCount * steps) / 8);
       const gridBytes = r.take(gridByteLen);
 
@@ -1780,6 +1814,7 @@
 
     return {
       bpm: clampInt(bpm, 30, 300),
+      stepsPerBeat,
       startTileId: startId,
       activeTileId: startId,
       loopTileId: null,
@@ -1788,8 +1823,9 @@
     };
   }
 
-  function decodeStateV4(r, dec) {
+  function decodeStateV3(r, dec) {
     const bpm = r.u16();
+    const stepsPerBeat = LEGACY_STEPS_PER_BEAT;
     const trackCount = r.u8();
 
     if (trackCount <= 0 || trackCount > 255) throw new Error('Invalid track count');
@@ -1842,7 +1878,7 @@
         );
       }
 
-      const steps = stepsForBeats(beats);
+      const steps = stepsForBeats(beats, stepsPerBeat);
       const gridByteLen = Math.ceil((trackCount * steps) / 8);
       const gridBytes = r.take(gridByteLen);
 
@@ -1867,6 +1903,96 @@
 
     return {
       bpm: clampInt(bpm, 30, 300),
+      stepsPerBeat,
+      startTileId: startId,
+      activeTileId: startId,
+      loopTileId: null,
+      tracks,
+      tiles,
+    };
+  }
+
+  function decodeStateV5(r, dec) {
+    const bpm = r.u16();
+    const stepsPerBeat = clampInt(r.u8(), 1, MAX_STEPS_PER_BEAT);
+    const trackCount = r.u8();
+
+    if (trackCount <= 0 || trackCount > 255) throw new Error('Invalid track count');
+
+    /** @type {Track[]} */
+    const tracks = [];
+
+    for (let i = 0; i < trackCount; i++) {
+      const kind = r.u8();
+      const labelLen = r.u8();
+      const labelBytes = r.take(labelLen);
+      const label = dec.decode(labelBytes) || `Track ${i + 1}`;
+
+      if (kind === 0) {
+        const drum = u8ToDrum(r.u8());
+        tracks.push({ id: uuid(), label, kind: 'drum', drum });
+      } else {
+        const waveform = u8ToWaveform(r.u8());
+        const midi = r.u8();
+        tracks.push({ id: uuid(), label, kind: 'note', midi, waveform });
+      }
+    }
+
+    const startIndex = r.u16();
+    const tileCount = r.u16();
+
+    if (tileCount <= 0 || tileCount > 200) throw new Error('Invalid tile count');
+
+    /** @type {Tile[]} */
+    const tiles = [];
+
+    for (let i = 0; i < tileCount; i++) {
+      const nameLen = r.u8();
+      const nameBytes = r.take(nameLen);
+      const name = dec.decode(nameBytes) || `Tile ${i + 1}`;
+
+      const beats = clampInt(r.u8(), 1, MAX_BEATS_PER_TILE);
+      const droneCount = clampInt(r.u8(), 0, 255);
+
+      /** @type {DroneSettings[]} */
+      const drones = [];
+      for (let d = 0; d < droneCount; d++) {
+        drones.push(
+          normalizeDroneSettings({
+            enabled: r.u8() === 1,
+            waveform: u8ToWaveform(r.u8()),
+            midi: r.u8(),
+            volume: clampFloat(r.u8() / 100, 0, 1),
+          })
+        );
+      }
+
+      const steps = stepsForBeats(beats, stepsPerBeat);
+      const gridByteLen = Math.ceil((trackCount * steps) / 8);
+      const gridBytes = r.take(gridByteLen);
+
+      tiles.push({
+        id: uuid(),
+        name,
+        beats,
+        drones,
+        grid: bytesToGrid(gridBytes, trackCount, steps),
+        transitions: {},
+      });
+    }
+
+    for (let i = 0; i < tileCount; i++) {
+      for (let j = 0; j < tileCount; j++) {
+        const wgt = r.u16();
+        tiles[i].transitions[tiles[j].id] = wgt;
+      }
+    }
+
+    const startId = startIndex !== 0xffff && startIndex < tiles.length ? tiles[startIndex].id : tiles[0].id;
+
+    return {
+      bpm: clampInt(bpm, 30, 300),
+      stepsPerBeat,
       startTileId: startId,
       activeTileId: startId,
       loopTileId: null,
@@ -1885,6 +2011,7 @@
     if (version === 2) return decodeStateV2(r, dec);
     if (version === 3) return decodeStateV3(r, dec);
     if (version === 4) return decodeStateV4(r, dec);
+    if (version === 5) return decodeStateV5(r, dec);
 
     throw new Error(`Unsupported version ${version}`);
   }
@@ -2052,13 +2179,14 @@
     if (!tile) return;
 
     const steps = stepsForTile(tile);
+    const stepsPerBeat = getStepsPerBeat();
     const next = createEmptyGrid(state.tracks.length, steps);
 
     for (let r = 0; r < state.tracks.length; r++) {
       const tr = state.tracks[r];
       const p = tr.kind === 'drum' ? 0.22 : 0.12;
       for (let s = 0; s < steps; s++) {
-        const downbeatBoost = s % STEPS_PER_BEAT === 0 ? 1.35 : 1.0;
+        const downbeatBoost = stepsPerBeat > 1 && s % stepsPerBeat === 0 ? 1.35 : 1.0;
         next[r][s] = Math.random() < p * downbeatBoost;
       }
     }
@@ -2104,6 +2232,7 @@
   function initDefaultState() {
     state = {
       bpm: 120,
+      stepsPerBeat: DEFAULT_STEPS_PER_BEAT,
       startTileId: null,
       activeTileId: null,
       loopTileId: null,
@@ -2242,6 +2371,7 @@
       /** @type {AppState} */
       const before = {
         bpm: 111,
+        stepsPerBeat: 3,
         startTileId: null,
         activeTileId: null,
         loopTileId: null,
@@ -2276,6 +2406,7 @@
 
       console.assert(after.tiles.length === 2, 'decode tile count');
       console.assert(after.bpm === 111, 'decode bpm');
+      console.assert(after.stepsPerBeat === 3, 'decode stepsPerBeat');
       console.assert(after.tiles[0].beats === 3, 'decode beats');
       console.assert(after.tiles[1].beats === 5, 'decode beats');
 
