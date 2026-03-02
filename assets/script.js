@@ -573,16 +573,47 @@
         const color = from.id === state.activeTileId ? `rgba(245, 158, 11, ${alpha})` : `rgba(37, 99, 235, ${alpha})`;
 
         if (i === j) {
-          const loopRadius = radius + 10;
-          const loopCenterY = Math.max(paddingY + loopRadius, centerY - Math.min(maxArc, loopRadius + 14));
+          const horizontalSpace = Math.min(fromPos.x - paddingX, width - paddingX - fromPos.x);
+          const loopWidth = Math.max(radius * 0.9, Math.min(radius * 2.2, horizontalSpace + radius * 0.4));
+          const maxLoopHeight = Math.max(24, centerY - paddingY - radius * 0.4);
+          const loopHeight = Math.max(26, Math.min(maxLoopHeight, radius * 2.2 + 12));
+
+          const startX = fromPos.x + radius * 0.35;
+          const startY = centerY - radius * 0.9;
+          const endX = fromPos.x - radius * 0.35;
+          const endY = centerY - radius * 0.9;
+          const topY = centerY - loopHeight;
+
           ctx.strokeStyle = color;
           ctx.lineWidth = lineWidth;
           ctx.beginPath();
-          ctx.arc(fromPos.x, loopCenterY, loopRadius, 0.15, Math.PI * 1.85);
+          ctx.moveTo(startX, startY);
+          ctx.bezierCurveTo(
+            fromPos.x + loopWidth, topY + loopHeight * 0.35,
+            fromPos.x + loopWidth, topY,
+            fromPos.x, topY
+          );
+          ctx.bezierCurveTo(
+            fromPos.x - loopWidth, topY,
+            fromPos.x - loopWidth, topY + loopHeight * 0.35,
+            endX, endY
+          );
           ctx.stroke();
 
+          const tangentX = endX - (fromPos.x - loopWidth);
+          const tangentY = endY - (topY + loopHeight * 0.35);
+          const angle = Math.atan2(tangentY, tangentX);
+          const head = 5 + 3 * strength;
+          ctx.fillStyle = color;
+          ctx.beginPath();
+          ctx.moveTo(endX, endY);
+          ctx.lineTo(endX - head * Math.cos(angle - 0.45), endY - head * Math.sin(angle - 0.45));
+          ctx.lineTo(endX - head * Math.cos(angle + 0.45), endY - head * Math.sin(angle + 0.45));
+          ctx.closePath();
+          ctx.fill();
+
           ctx.fillStyle = 'rgba(15, 23, 42, 0.7)';
-          ctx.fillText(String(weight), fromPos.x + loopRadius * 0.65, loopCenterY - loopRadius - 6);
+          ctx.fillText(String(weight), fromPos.x, topY - 8);
           continue;
         }
 
