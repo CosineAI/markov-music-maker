@@ -12,7 +12,7 @@ body {
   color: #222;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: auto;
 }
 
 main {
@@ -22,10 +22,9 @@ main {
   padding: 1.4rem;
   display: flex;
   flex-direction: column;
-  min-height: 0;
-  height: 100vh;
+  min-height: 100vh;
   box-sizing: border-box;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .btn {
@@ -192,13 +191,12 @@ main {
 .app {
   display: grid;
   grid-template-columns: minmax(260px, 320px) minmax(420px, 1fr);
+  grid-template-rows: auto auto;
+  grid-template-areas:
+    "tiles editor"
+    "chain chain";
   gap: 1.2rem;
-  align-items: stretch;
-  height: 100%;
-}
-
-.chain-panel {
-  grid-column: 1 / -1;
+  align-items: start;
 }
 
 .panel {
@@ -210,7 +208,12 @@ main {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  overflow: auto;
+  overflow: visible;
+}
+
+.tiles-panel {
+  grid-column: 1 / -1;
+  min-height: 320px;
 }
 
 .panel-header {
@@ -547,11 +550,11 @@ main {
 
   .tiles-panel,
   .editor-panel {
-    min-height: 60vh;
+    min-height: 70vh;
   }
 
   .tiles-list {
-    min-height: 240px;
+    min-height: 260px;
   }
 
   .editor-controls {
@@ -587,5 +590,20 @@ main {
   .seq-grid {
     min-width: 760px;
     grid-template-columns: 130px repeat(16, 1fr);
+  }
+}
+
+@media (max-width: 720px) {
+  .tiles-panel,
+  .editor-panel {
+    min-height: 520px;
+  }
+
+  .tiles-list {
+    min-height: 260px;
+  }
+
+  .chain-panel {
+    min-height: 300px;
   }
 }
