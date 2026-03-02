@@ -24,10 +24,12 @@
   /** @type {number | null} */
   let intervalId = null;
   let stepIndex = 0;
+  let playbackRequestId = 0;
 
   const els = {
     tilesList: /** @type {HTMLElement} */ (document.getElementById('tiles-list')),
     createTileBtn: /** @type {HTMLButtonElement} */ (document.getElementById('create-tile')),
+    copyTileBtn: /** @type {HTMLButtonElement} */ (document.getElementById('copy-tile')),
     renameTileBtn: /** @type {HTMLButtonElement} */ (document.getElementById('rename-tile')),
     deleteTileBtn: /** @type {HTMLButtonElement} */ (document.getElementById('delete-tile')),
     startTileSelect: /** @type {HTMLSelectElement} */ (document.getElementById('start-tile-select')),
@@ -737,6 +739,8 @@
   async function startPlayback() {
     if (intervalId !== null) return;
 
+    const requestId = ++playbackRequestId;
+
     ensureAudio();
     if (!audioCtx) return;
 
@@ -747,6 +751,8 @@
         // ignore
       }
     }
+
+    if (requestId !== playbackRequestId) return;
 
     // Always start from the start tile when you press Play
     const startId = state.loopTileId || state.startTileId || state.tiles[0]?.id || null;
@@ -765,6 +771,7 @@
   }
 
   function stopPlayback() {
+    playbackRequestId += 1;
     if (intervalId !== null) {
       window.clearInterval(intervalId);
       intervalId = null;
@@ -1093,6 +1100,36 @@
     scheduleUrlUpdate();
   }
 
+  function copyActiveTile() {
+    const tile = getActiveTile();
+    if (!tile) return;
+
+    const baseName = `${tile.name} Copy`;
+    const existing = new Set(state.tiles.map((t) => t.name));
+    let name = baseName;
+    let i = 2;
+    while (existing.has(name)) {
+      name = `${baseName} ${i}`;
+      i += 1;
+    }
+
+    const copy = createTile(name);
+    copy.grid = tile.grid.map((row) => row.slice());
+
+    state.tiles.push(copy);
+    ensureTransitionsComplete();
+
+    for (const t of state.tiles) {
+      if (t.id === copy.id) continue;
+      copy.transitions[t.id] = tile.transitions[t.id] ?? 0;
+    }
+    copy.transitions[copy.id] = tile.transitions[tile.id] ?? 0;
+
+    state.activeTileId = copy.id;
+    renderAll();
+    scheduleUrlUpdate();
+  }
+
   function deleteActiveTile() {
     if (state.tiles.length <= 1) {
       toast('Need at least 1 tile');
@@ -1228,6 +1265,7 @@
 
   function wireEvents() {
     els.createTileBtn.addEventListener('click', addTile);
+    els.copyTileBtn.addEventListener('click', copyActiveTile);
     els.renameTileBtn.addEventListener('click', renameActiveTile);
     els.deleteTileBtn.addEventListener('click', deleteActiveTile);
 
@@ -1238,6 +1276,7 @@
 
         if (state.loopTileId === tile.id) {
           state.loopTileId = null;
+          stopPlayback();
           renderAll();
           return;
         }
@@ -1247,6 +1286,10 @@
         if (intervalId === null) {
           startPlayback();
         } else {
+          renderAll();
+        }
+      });
+    } else {
           renderAll();
         }
       });
