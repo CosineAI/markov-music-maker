@@ -1177,9 +1177,9 @@
           const loopRadius = Math.min(radius * 0.8, maxArc);
           const loopCenterX = fromPos.x;
 
-          const desiredCenterY = fromPos.y + radius * 1.55;
-          const minCenterY = fromPos.y + radius * 0.9;
-          const maxCenterY = height - paddingY - loopRadius - 18;
+          const desiredCenterY = fromPos.y + radius * 2.25;
+          const minCenterY = fromPos.y + radius * 1.3;
+          const maxCenterY = height - paddingY - loopRadius - 10;
           const loopCenterY = maxCenterY >= minCenterY ? clampFloat(desiredCenterY, minCenterY, maxCenterY) : desiredCenterY;
 
           const startAngle = Math.PI / 3; // 60deg
