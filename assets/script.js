@@ -93,8 +93,6 @@
    * @property {number} volume
    */
 
-  const DEFAULT_DRONE = { enabled: false, waveform: 'sine', midi: 48, volume: 0.18 };
-
   /**
    * @typedef Tile
    * @property {string} id
