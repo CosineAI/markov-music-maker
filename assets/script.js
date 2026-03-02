@@ -1289,10 +1289,6 @@
           renderAll();
         }
       });
-    } else {
-          renderAll();
-        }
-      });
     }
 
     els.startTileSelect.addEventListener('change', () => {
