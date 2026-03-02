@@ -285,6 +285,7 @@ main {
   padding: 0.55rem 0.65rem;
   background: #fff;
   font-size: 0.95rem;
+  width: 100%;
 }
 
 .badge {
@@ -476,6 +477,28 @@ main {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
+  min-width: 0;
+}
+
+.channel-row .btn {
+  width: 100%;
+}
+
+@media (max-width: 920px) {
+  .channel-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+  }
+
+  .channel-row .js-track-remove {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 520px) {
+  .channel-row {
+    grid-template-columns: 1fr;
+  }
 }
 
 .grid-mount {
