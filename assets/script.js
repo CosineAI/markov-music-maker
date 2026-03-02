@@ -25,6 +25,11 @@
   let stepIndex = 0;
   let playbackRequestId = 0;
 
+  const ui = {
+    dronesOpen: false,
+    notesOpen: false,
+  };
+
   const els = {
     tilesList: /** @type {HTMLElement} */ (document.getElementById('tiles-list')),
     createTileBtn: /** @type {HTMLButtonElement} */ (document.getElementById('create-tile')),
@@ -656,6 +661,8 @@
       })
       .join('');
 
+    const dronesBody = droneRows ? `<div class="rows">${droneRows}</div>` : '<div class="small muted">No drones.</div>';
+
     const noteRows = state.tracks
       .filter((t) => t.kind === 'note')
       .map((t) => {
@@ -689,28 +696,43 @@
       })
       .join('');
 
+    const notesBody = noteRows ? `<div class="rows">${noteRows}</div>` : '<div class="small muted">No note channels.</div>';
+
+    const dronesOpenAttr = ui.dronesOpen ? 'open' : '';
+    const notesOpenAttr = ui.notesOpen ? 'open' : '';
+
     els.instrumentSettings.innerHTML = `
-      <div class="subsection">
-        <div class="subsection__title">Drones (per tile)</div>
+      <details id="dronesDetails" class="subsection subsection--collapsible" ${dronesOpenAttr}>
+        <summary class="subsection__title">Drones (per tile)</summary>
         <div class="subsection__content">
           ${tile ? '' : '<div class="small muted">Select a tile to edit drone settings.</div>'}
-          ${droneRows || '<div class="small muted">No drones.</div>'}
+          ${dronesBody}
           <div>
             <button id="addDrone" class="btn primary" type="button" ${droneDisabledAttr}>+ Add drone</button>
           </div>
         </div>
-      </div>
+      </details>
 
-      <div class="subsection">
-        <div class="subsection__title">Note channels</div>
+      <details id="notesDetails" class="subsection subsection--collapsible" ${notesOpenAttr}>
+        <summary class="subsection__title">Note channels</summary>
         <div class="subsection__content">
-          ${noteRows || '<div class="small muted">No note channels.</div>'}
+          ${notesBody}
           <div>
             <button id="addNoteChannel" class="btn primary" type="button">+ Add note channel</button>
           </div>
         </div>
-      </div>
+      </details>
     `;
+
+    const dronesDetails = /** @type {HTMLDetailsElement | null} */ (els.instrumentSettings.querySelector('#dronesDetails'));
+    dronesDetails?.addEventListener('toggle', () => {
+      ui.dronesOpen = Boolean(dronesDetails.open);
+    });
+
+    const notesDetails = /** @type {HTMLDetailsElement | null} */ (els.instrumentSettings.querySelector('#notesDetails'));
+    notesDetails?.addEventListener('toggle', () => {
+      ui.notesOpen = Boolean(notesDetails.open);
+    });
 
     const addDroneBtn = /** @type {HTMLButtonElement | null} */ (els.instrumentSettings.querySelector('#addDrone'));
     addDroneBtn?.addEventListener('click', addDroneToActiveTile);

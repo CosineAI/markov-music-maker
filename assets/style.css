@@ -286,6 +286,8 @@ main {
   background: #fff;
   font-size: 0.95rem;
   width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
 }
 
 .badge {
@@ -438,6 +440,49 @@ main {
   padding: 0.75rem;
 }
 
+.subsection--collapsible {
+  padding: 0;
+}
+
+.subsection--collapsible > summary {
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+  padding: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.subsection--collapsible > summary::-webkit-details-marker {
+  display: none;
+}
+
+.subsection--collapsible > summary.subsection__title {
+  margin-bottom: 0;
+}
+
+.subsection--collapsible > summary::after {
+  content: '▸';
+  font-size: 0.95rem;
+  opacity: 0.65;
+  transform: rotate(0deg);
+  transition: transform 120ms ease;
+}
+
+.subsection--collapsible[open] > summary::after {
+  transform: rotate(90deg);
+}
+
+.subsection--collapsible[open] > summary {
+  border-bottom: 1px solid rgba(30, 41, 59, 0.08);
+}
+
+.subsection--collapsible > .subsection__content {
+  padding: 0.75rem;
+}
+
 .subsection__title {
   font-weight: 650;
   color: rgba(15, 23, 42, 0.85);
@@ -448,6 +493,12 @@ main {
   display: flex;
   flex-direction: column;
   gap: 0.65rem;
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
 }
 
 .inline-fields {
@@ -464,12 +515,18 @@ main {
   border: 1px solid rgba(22, 25, 32, 0.16);
   font-size: 0.95rem;
   background: #fff;
+  box-sizing: border-box;
+  min-width: 0;
 }
 .channel-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(140px, 0.6fr) minmax(140px, 0.6fr) 110px;
+  grid-template-columns: minmax(0, 1fr) 120px 120px 110px;
   gap: 0.55rem;
   align-items: end;
+  padding: 0.65rem;
+  border-radius: 14px;
+  border: 1px solid rgba(30, 41, 59, 0.1);
+  background: rgba(255, 255, 255, 0.8);
 }
 
 .channel-row__label {
@@ -485,9 +542,13 @@ main {
 
 .drone-row {
   display: grid;
-  grid-template-columns: minmax(0, 0.6fr) minmax(140px, 0.7fr) minmax(140px, 0.7fr) minmax(120px, 0.55fr) 110px;
+  grid-template-columns: 110px 120px 120px 110px 110px;
   gap: 0.55rem;
   align-items: end;
+  padding: 0.65rem;
+  border-radius: 14px;
+  border: 1px solid rgba(30, 41, 59, 0.1);
+  background: rgba(255, 255, 255, 0.8);
 }
 
 .drone-row__label {
