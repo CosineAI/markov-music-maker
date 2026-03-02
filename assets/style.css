@@ -190,7 +190,7 @@ main {
 
 .app {
   display: grid;
-  grid-template-columns: minmax(260px, 320px) minmax(420px, 1fr);
+  grid-template-columns: minmax(260px, 3fr) minmax(520px, 7fr);
   grid-template-rows: auto auto;
   grid-template-areas:
     "tiles editor"
@@ -212,7 +212,16 @@ main {
 }
 
 .tiles-panel {
-  grid-column: 1 / -1;
+  grid-area: tiles;
+  min-height: 320px;
+}
+
+.editor-panel {
+  grid-area: editor;
+}
+
+.chain-panel {
+  grid-area: chain;
   min-height: 320px;
 }
 
