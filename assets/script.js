@@ -405,7 +405,7 @@
       const isLooping = state.loopTileId === tile.id;
       els.loopTileBtn.disabled = false;
       els.loopTileBtn.classList.toggle('is-active', isLooping);
-      els.loopTileBtn.textContent = 'Play tile';
+      els.loopTileBtn.textContent = isLooping ? 'Stop tile' : 'Play tile';
       els.loopTileBtn.setAttribute('aria-pressed', isLooping ? 'true' : 'false');
     }
   }
@@ -1235,6 +1235,13 @@
       els.loopTileBtn.addEventListener('click', () => {
         const tile = getActiveTile();
         if (!tile) return;
+
+        if (state.loopTileId === tile.id) {
+          state.loopTileId = null;
+          renderAll();
+          return;
+        }
+
         state.loopTileId = tile.id;
         state.activeTileId = tile.id;
         if (intervalId === null) {
