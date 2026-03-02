@@ -1,18 +1,39 @@
 (() => {
   'use strict';
 
-  const STEPS = 16;
+  const DEFAULT_STEPS = 16;
 
-  const TRACKS = [
+  const DRUM_TRACKS = [
     { id: 'kick', label: 'Kick', kind: 'drum', drum: 'kick' },
     { id: 'snare', label: 'Snare', kind: 'drum', drum: 'snare' },
     { id: 'hat', label: 'Hat', kind: 'drum', drum: 'hat' },
-    { id: 'C4', label: 'C4', kind: 'note', freq: 261.63 },
-    { id: 'D4', label: 'D4', kind: 'note', freq: 293.66 },
-    { id: 'E4', label: 'E4', kind: 'note', freq: 329.63 },
-    { id: 'G4', label: 'G4', kind: 'note', freq: 392.0 },
-    { id: 'A4', label: 'A4', kind: 'note', freq: 440.0 },
   ];
+
+  const NOTE_OPTIONS = [
+    { name: 'C2', freq: 65.41 },
+    { name: 'D2', freq: 73.42 },
+    { name: 'E2', freq: 82.41 },
+    { name: 'G2', freq: 98.0 },
+    { name: 'A2', freq: 110.0 },
+    { name: 'C3', freq: 130.81 },
+    { name: 'D3', freq: 146.83 },
+    { name: 'E3', freq: 164.81 },
+    { name: 'G3', freq: 196.0 },
+    { name: 'A3', freq: 220.0 },
+    { name: 'C4', freq: 261.63 },
+    { name: 'D4', freq: 293.66 },
+    { name: 'E4', freq: 329.63 },
+    { name: 'G4', freq: 392.0 },
+    { name: 'A4', freq: 440.0 },
+    { name: 'C5', freq: 523.25 },
+    { name: 'D5', freq: 587.33 },
+    { name: 'E5', freq: 659.25 },
+    { name: 'G5', freq: 783.99 },
+    { name: 'A5', freq: 880.0 },
+  ];
+
+  const WAVEFORMS = ['sine', 'triangle', 'square', 'sawtooth'];
+  const DEFAULT_NOTE_CHANNELS = ['C4', 'D4', 'E4', 'G4', 'A4'];
 
   /** @type {null | AudioContext} */
   let audioCtx = null;
@@ -53,6 +74,13 @@
     transitionsTitle: /** @type {HTMLElement} */ (document.getElementById('transitions-title')),
     transitionsList: /** @type {HTMLElement} */ (document.getElementById('transitions-list')),
 
+    tileStepsInput: /** @type {HTMLInputElement} */ (document.getElementById('tile-steps')),
+    addChannelBtn: /** @type {HTMLButtonElement} */ (document.getElementById('add-channel')),
+    channelsList: /** @type {HTMLElement} */ (document.getElementById('channels-list')),
+    droneEnabled: /** @type {HTMLInputElement} */ (document.getElementById('drone-enabled')),
+    droneNote: /** @type {HTMLSelectElement} */ (document.getElementById('drone-note')),
+    droneWaveform: /** @type {HTMLSelectElement} */ (document.getElementById('drone-waveform')),
+
     loopTileBtn: /** @type {HTMLButtonElement} */ (document.getElementById('loop-tile')),
     chainGraph: /** @type {HTMLElement} */ (document.getElementById('chain-graph')),
     chainCanvas: /** @type {HTMLCanvasElement} */ (document.getElementById('chain-canvas')),
@@ -60,9 +88,19 @@
   };
 
   /**
+   * @typedef TileChannel
+   * @property {string} id
+   * @property {string} note
+   * @property {string} waveform
+   */
+
+  /**
    * @typedef Tile
    * @property {string} id
    * @property {string} name
+   * @property {number} steps
+   * @property {TileChannel[]} channels
+   * @property {{enabled: boolean, note: string, waveform: string}} drone
    * @property {boolean[][]} grid
    * @property {Record<string, number>} transitions
    */
@@ -98,11 +136,28 @@
     return `t_${Math.random().toString(16).slice(2)}_${Date.now().toString(16)}`;
   }
 
-  function createEmptyGrid() {
-    return Array.from({ length: TRACKS.length }, () => Array.from({ length: STEPS }, () => false));
+  function noteToFreq(note) {
+    return NOTE_OPTIONS.find((n) => n.name === note)?.freq ?? 440;
   }
 
-  
+  function createNoteChannel(note = 'C4', waveform = 'square') {
+    return { id: uuid(), note, waveform };
+  }
+
+  function createEmptyGrid(steps, rowCount) {
+    return Array.from({ length: rowCount }, () => Array.from({ length: steps }, () => false));
+  }
+
+  function getTileTracks(tile) {
+    const noteTracks = tile.channels.map((channel) => ({
+      id: channel.id,
+      label: channel.note,
+      kind: 'note',
+      freq: noteToFreq(channel.note),
+      waveform: channel.waveform,
+    }));
+    return [...DRUM_TRACKS, ...noteTracks];
+  }
 
   function getTile(tileId) {
     return state.tiles.find((t) => t.id === tileId) || null;
@@ -126,11 +181,17 @@
   }
 
   function createTile(name) {
+    const channels = DEFAULT_NOTE_CHANNELS.map((note) => createNoteChannel(note, 'square'));
+    const rowCount = DRUM_TRACKS.length + channels.length;
+
     /** @type {Tile} */
     const tile = {
       id: uuid(),
       name,
-      grid: createEmptyGrid(),
+      steps: DEFAULT_STEPS,
+      channels,
+      drone: { enabled: false, note: 'C3', waveform: 'sine' },
+      grid: createEmptyGrid(DEFAULT_STEPS, rowCount),
       transitions: {},
     };
     return tile;
@@ -226,12 +287,12 @@
     playNoise(t, 0.05, { amp: 0.35, highpassHz: 5000, lowpassHz: 13000 });
   }
 
-  function playNote(freq, t) {
+  function playNote(freq, t, waveform) {
     if (!audioCtx || !masterGain) return;
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
 
-    osc.type = 'square';
+    osc.type = waveform;
     osc.frequency.setValueAtTime(freq, t);
 
     gain.gain.setValueAtTime(0.0001, t);
@@ -252,16 +313,17 @@
   }
 
   function playStep(tile, step, t) {
-    for (let r = 0; r < TRACKS.length; r++) {
-      if (!tile.grid[r][step]) continue;
+    const tracks = getTileTracks(tile);
+    for (let r = 0; r < tracks.length; r++) {
+      if (!tile.grid[r]?.[step]) continue;
 
-      const tr = TRACKS[r];
+      const tr = tracks[r];
       if (tr.kind === 'drum') {
         if (tr.drum === 'kick') playKick(t);
         else if (tr.drum === 'snare') playSnare(t);
         else if (tr.drum === 'hat') playHat(t);
       } else {
-        playNote(tr.freq, t);
+        playNote(tr.freq, t, tr.waveform);
       }
     }
   }
@@ -285,8 +347,11 @@
     const tile = getActiveTile();
     if (!tile || !gridContainer) return;
 
+    const tracks = getTileTracks(tile);
+
     const gridEl = document.createElement('div');
     gridEl.className = 'seq-grid';
+    gridEl.style.gridTemplateColumns = `150px repeat(${tile.steps}, 1fr)`;
 
     // header row
     const header = document.createElement('div');
@@ -294,7 +359,7 @@
     header.textContent = 'Track';
     gridEl.appendChild(header);
 
-    for (let s = 0; s < STEPS; s++) {
+    for (let s = 0; s < tile.steps; s++) {
       const stepLabel = document.createElement('div');
       stepLabel.className = 'seq-step-label';
       stepLabel.textContent = String(s + 1);
@@ -302,20 +367,20 @@
     }
 
     // rows
-    for (let r = 0; r < TRACKS.length; r++) {
+    for (let r = 0; r < tracks.length; r++) {
       const label = document.createElement('div');
       label.className = 'seq-track-label';
-      label.textContent = TRACKS[r].label;
+      label.textContent = tracks[r].label;
       gridEl.appendChild(label);
 
-      for (let s = 0; s < STEPS; s++) {
+      for (let s = 0; s < tile.steps; s++) {
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'seq-cell';
         btn.dataset.row = String(r);
         btn.dataset.step = String(s);
 
-        if (tile.grid[r][s]) btn.classList.add('is-active');
+        if (tile.grid[r]?.[s]) btn.classList.add('is-active');
         if (s === stepIndex && intervalId !== null) btn.classList.add('is-playhead');
         if (s % 4 === 0) btn.classList.add('is-downbeat');
 
@@ -393,7 +458,7 @@
       if (els.loopTileBtn) {
         els.loopTileBtn.disabled = true;
         els.loopTileBtn.classList.remove('is-active');
-        els.loopTileBtn.textContent = 'Loop tile';
+        els.loopTileBtn.textContent = 'Play tile';
         els.loopTileBtn.setAttribute('aria-pressed', 'false');
       }
       return;
@@ -418,6 +483,7 @@
 
     state.activeTileId = tileId;
     if (state.loopTileId) state.loopTileId = tileId;
+    if (stepIndex >= tile.steps) stepIndex = 0;
 
     // If the user changes the tile while playing, keep the step index but re-render.
     if (!opts.skipRender) {
@@ -470,6 +536,131 @@
       row.appendChild(label);
       row.appendChild(input);
       els.transitionsList.appendChild(row);
+    }
+  }
+
+  function renderTileControls() {
+    const tile = getActiveTile();
+    if (!tile) {
+      if (els.tileStepsInput) els.tileStepsInput.value = '';
+      if (els.addChannelBtn) els.addChannelBtn.disabled = true;
+      if (els.channelsList) els.channelsList.replaceChildren();
+      if (els.droneEnabled) els.droneEnabled.checked = false;
+      if (els.droneNote) els.droneNote.replaceChildren();
+      if (els.droneWaveform) els.droneWaveform.replaceChildren();
+      return;
+    }
+
+    if (els.tileStepsInput) {
+      els.tileStepsInput.value = String(tile.steps);
+    }
+
+    if (els.droneEnabled) els.droneEnabled.checked = tile.drone.enabled;
+
+    if (els.droneNote) {
+      els.droneNote.replaceChildren();
+      for (const note of NOTE_OPTIONS) {
+        const opt = document.createElement('option');
+        opt.value = note.name;
+        opt.textContent = note.name;
+        if (note.name === tile.drone.note) opt.selected = true;
+        els.droneNote.appendChild(opt);
+      }
+    }
+
+    if (els.droneWaveform) {
+      els.droneWaveform.replaceChildren();
+      for (const wf of WAVEFORMS) {
+        const opt = document.createElement('option');
+        opt.value = wf;
+        opt.textContent = wf;
+        if (wf === tile.drone.waveform) opt.selected = true;
+        els.droneWaveform.appendChild(opt);
+      }
+    }
+
+    renderChannelsList(tile);
+  }
+
+  function renderChannelsList(tile) {
+    if (!els.channelsList) return;
+    els.channelsList.replaceChildren();
+
+    tile.channels.forEach((channel, index) => {
+      const row = document.createElement('div');
+      row.className = 'channel-row';
+
+      const label = document.createElement('div');
+      label.className = 'channel-row__label';
+
+      const title = document.createElement('div');
+      title.textContent = `Channel ${index + 1}`;
+      title.style.fontWeight = '650';
+
+      const meta = document.createElement('div');
+      meta.className = 'small muted';
+      meta.textContent = `Row ${DRUM_TRACKS.length + index + 1}`;
+
+      label.appendChild(title);
+      label.appendChild(meta);
+
+      const noteSelect = document.createElement('select');
+      noteSelect.className = 'select';
+      for (const note of NOTE_OPTIONS) {
+        const opt = document.createElement('option');
+        opt.value = note.name;
+        opt.textContent = note.name;
+        if (note.name === channel.note) opt.selected = true;
+        noteSelect.appendChild(opt);
+      }
+
+      noteSelect.addEventListener('change', () => {
+        channel.note = noteSelect.value;
+        renderGrid();
+        renderChainGraph();
+        scheduleUrlUpdate();
+      });
+
+      const waveSelect = document.createElement('select');
+      waveSelect.className = 'select';
+      for (const wf of WAVEFORMS) {
+        const opt = document.createElement('option');
+        opt.value = wf;
+        opt.textContent = wf;
+        if (wf === channel.waveform) opt.selected = true;
+        waveSelect.appendChild(opt);
+      }
+
+      waveSelect.addEventListener('change', () => {
+        channel.waveform = waveSelect.value;
+        scheduleUrlUpdate();
+      });
+
+      const removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.className = 'btn danger';
+      removeBtn.textContent = 'Remove';
+      removeBtn.addEventListener('click', () => {
+        tile.channels.splice(index, 1);
+        const rowIndex = DRUM_TRACKS.length + index;
+        tile.grid.splice(rowIndex, 1);
+        if (tile.grid.length === 0) {
+          tile.grid = createEmptyGrid(tile.steps, DRUM_TRACKS.length);
+        }
+        renderAll();
+        scheduleUrlUpdate();
+      });
+
+      row.appendChild(label);
+      row.appendChild(noteSelect);
+      row.appendChild(waveSelect);
+      row.appendChild(removeBtn);
+
+      els.channelsList.appendChild(row);
+    });
+
+    if (els.addChannelBtn) {
+      els.addChannelBtn.disabled = false;
     }
   }
 
@@ -720,6 +911,8 @@
     const tile = getActiveTile();
     if (!tile) return;
 
+    const steps = tile.steps;
+    if (stepIndex >= steps) stepIndex = 0;
     const current = stepIndex;
 
     if (audioCtx) {
@@ -727,7 +920,7 @@
       playStep(tile, current, t);
     }
 
-    const next = (current + 1) % STEPS;
+    const next = (current + 1) % steps;
     updatePlayheadClasses(current, next);
     stepIndex = next;
 
@@ -776,6 +969,7 @@
       window.clearInterval(intervalId);
       intervalId = null;
     }
+    stopDrone();
     setPlayingUI(false);
 
     // Clear playhead highlight
@@ -875,11 +1069,13 @@
   }
 
   function gridToBytes(grid) {
-    const bitCount = TRACKS.length * STEPS;
+    const rows = grid.length;
+    const cols = grid[0]?.length ?? 0;
+    const bitCount = rows * cols;
     const bytes = new Uint8Array(Math.ceil(bitCount / 8));
     let k = 0;
-    for (let r = 0; r < TRACKS.length; r++) {
-      for (let s = 0; s < STEPS; s++) {
+    for (let r = 0; r < rows; r++) {
+      for (let s = 0; s < cols; s++) {
         if (grid[r][s]) bytes[k >> 3] |= 1 << (k & 7);
         k++;
       }
@@ -887,11 +1083,11 @@
     return bytes;
   }
 
-  function bytesToGrid(bytes) {
-    const grid = createEmptyGrid();
+  function bytesToGrid(bytes, rows, cols) {
+    const grid = createEmptyGrid(cols, rows);
     let k = 0;
-    for (let r = 0; r < TRACKS.length; r++) {
-      for (let s = 0; s < STEPS; s++) {
+    for (let r = 0; r < rows; r++) {
+      for (let s = 0; s < cols; s++) {
         const on = (bytes[k >> 3] & (1 << (k & 7))) !== 0;
         grid[r][s] = on;
         k++;
@@ -901,12 +1097,17 @@
   }
 
   function encodeState() {
-    // v1 binary format:
-    // [u8 version=1]
+    // v2 binary format:
+    // [u8 version=2]
     // [u16 bpm]
     // [u16 startIndex or 0xFFFF]
     // [u16 tileCount]
-    // for each tile: [u8 nameLen][nameBytes][gridBytes(ceil(TRACKS*STEPS/8))]
+    // for each tile:
+    // [u8 nameLen][nameBytes]
+    // [u8 steps][u8 channelCount]
+    // for each channel: [u8 noteIndex][u8 waveformIndex]
+    // [u8 droneEnabled][u8 droneNoteIndex][u8 droneWaveformIndex]
+    // [gridBytes]
     // transitions matrix: tileCount * tileCount * u16 weight
 
     ensureTransitionsComplete();
@@ -914,7 +1115,7 @@
     const w = new ByteWriter();
     const enc = new TextEncoder();
 
-    w.u8(1);
+    w.u8(2);
     w.u16(clampInt(state.bpm, 30, 300));
 
     const tileCount = state.tiles.length;
@@ -924,17 +1125,30 @@
     w.u16(startIndex >= 0 ? startIndex : 0xffff);
     w.u16(tileCount);
 
-    const gridByteLen = Math.ceil((TRACKS.length * STEPS) / 8);
-
     for (const t of state.tiles) {
       const nameBytes = enc.encode(t.name);
       const trimmed = nameBytes.length > 80 ? nameBytes.slice(0, 80) : nameBytes;
       w.u8(trimmed.length);
       w.bytes(trimmed);
 
-      const gb = gridToBytes(t.grid);
-      if (gb.length !== gridByteLen) throw new Error('grid bytes mismatch');
-      w.bytes(gb);
+      const steps = clampInt(t.steps, 4, 64);
+      const channelCount = t.channels.length;
+      w.u8(steps);
+      w.u8(channelCount);
+
+      for (const ch of t.channels) {
+        const noteIndex = Math.max(0, NOTE_OPTIONS.findIndex((n) => n.name === ch.note));
+        const waveIndex = Math.max(0, WAVEFORMS.indexOf(ch.waveform));
+        w.u8(noteIndex);
+        w.u8(waveIndex);
+      }
+
+      w.u8(t.drone.enabled ? 1 : 0);
+      w.u8(Math.max(0, NOTE_OPTIONS.findIndex((n) => n.name === t.drone.note)));
+      w.u8(Math.max(0, WAVEFORMS.indexOf(t.drone.waveform)));
+
+      const gridBytes = gridToBytes(t.grid);
+      w.bytes(gridBytes);
     }
 
     for (let i = 0; i < tileCount; i++) {
@@ -955,15 +1169,64 @@
     const dec = new TextDecoder();
 
     const version = r.u8();
-    if (version !== 1) throw new Error(`Unsupported version ${version}`);
+
+    if (version === 1) {
+      const bpm = r.u16();
+      const startIndex = r.u16();
+      const tileCount = r.u16();
+
+      if (tileCount <= 0 || tileCount > 200) throw new Error('Invalid tile count');
+
+      const rowCount = DRUM_TRACKS.length + DEFAULT_NOTE_CHANNELS.length;
+      const gridByteLen = Math.ceil((rowCount * DEFAULT_STEPS) / 8);
+
+      /** @type {Tile[]} */
+      const tiles = [];
+
+      for (let i = 0; i < tileCount; i++) {
+        const nameLen = r.u8();
+        const nameBytes = r.take(nameLen);
+        const name = dec.decode(nameBytes) || `Tile ${i + 1}`;
+        const gridBytes = r.take(gridByteLen);
+
+        const channels = DEFAULT_NOTE_CHANNELS.map((note) => createNoteChannel(note, 'square'));
+
+        tiles.push({
+          id: uuid(),
+          name,
+          steps: DEFAULT_STEPS,
+          channels,
+          drone: { enabled: false, note: 'C3', waveform: 'sine' },
+          grid: bytesToGrid(gridBytes, rowCount, DEFAULT_STEPS),
+          transitions: {},
+        });
+      }
+
+      for (let i = 0; i < tileCount; i++) {
+        for (let j = 0; j < tileCount; j++) {
+          const wgt = r.u16();
+          tiles[i].transitions[tiles[j].id] = wgt;
+        }
+      }
+
+      const startId = startIndex !== 0xffff && startIndex < tiles.length ? tiles[startIndex].id : tiles[0].id;
+
+      return {
+        bpm: clampInt(bpm, 30, 300),
+        startTileId: startId,
+        activeTileId: startId,
+        loopTileId: null,
+        tiles,
+      };
+    }
+
+    if (version !== 2) throw new Error(`Unsupported version ${version}`);
 
     const bpm = r.u16();
     const startIndex = r.u16();
     const tileCount = r.u16();
 
     if (tileCount <= 0 || tileCount > 200) throw new Error('Invalid tile count');
-
-    const gridByteLen = Math.ceil((TRACKS.length * STEPS) / 8);
 
     /** @type {Tile[]} */
     const tiles = [];
@@ -972,17 +1235,42 @@
       const nameLen = r.u8();
       const nameBytes = r.take(nameLen);
       const name = dec.decode(nameBytes) || `Tile ${i + 1}`;
+
+      const steps = r.u8();
+      const channelCount = r.u8();
+      const channels = [];
+      for (let c = 0; c < channelCount; c++) {
+        const noteIndex = r.u8();
+        const waveIndex = r.u8();
+        const note = NOTE_OPTIONS[noteIndex]?.name ?? 'C4';
+        const waveform = WAVEFORMS[waveIndex] ?? 'square';
+        channels.push(createNoteChannel(note, waveform));
+      }
+
+      const droneEnabled = r.u8() === 1;
+      const droneNoteIndex = r.u8();
+      const droneWaveIndex = r.u8();
+      const drone = {
+        enabled: droneEnabled,
+        note: NOTE_OPTIONS[droneNoteIndex]?.name ?? 'C3',
+        waveform: WAVEFORMS[droneWaveIndex] ?? 'sine',
+      };
+
+      const rowCount = DRUM_TRACKS.length + channels.length;
+      const gridByteLen = Math.ceil((rowCount * steps) / 8);
       const gridBytes = r.take(gridByteLen);
 
       tiles.push({
         id: uuid(),
         name,
-        grid: bytesToGrid(gridBytes),
+        steps,
+        channels,
+        drone,
+        grid: bytesToGrid(gridBytes, rowCount, steps),
         transitions: {},
       });
     }
 
-    // transitions matrix
     for (let i = 0; i < tileCount; i++) {
       for (let j = 0; j < tileCount; j++) {
         const wgt = r.u16();
@@ -992,7 +1280,6 @@
 
     const startId = startIndex !== 0xffff && startIndex < tiles.length ? tiles[startIndex].id : tiles[0].id;
 
-    /** @type {AppState} */
     return {
       bpm: clampInt(bpm, 30, 300),
       startTileId: startId,
@@ -1114,6 +1401,9 @@
     }
 
     const copy = createTile(name);
+    copy.steps = tile.steps;
+    copy.channels = tile.channels.map((ch) => ({ id: uuid(), note: ch.note, waveform: ch.waveform }));
+    copy.drone = { ...tile.drone };
     copy.grid = tile.grid.map((row) => row.slice());
 
     state.tiles.push(copy);
@@ -1156,7 +1446,8 @@
   function clearActivePattern() {
     const tile = getActiveTile();
     if (!tile) return;
-    tile.grid = createEmptyGrid();
+    const rows = DRUM_TRACKS.length + tile.channels.length;
+    tile.grid = createEmptyGrid(tile.steps, rows);
     renderGrid();
     scheduleUrlUpdate();
   }
@@ -1165,11 +1456,12 @@
     const tile = getActiveTile();
     if (!tile) return;
 
-    const next = createEmptyGrid();
-    for (let r = 0; r < TRACKS.length; r++) {
-      const tr = TRACKS[r];
+    const tracks = getTileTracks(tile);
+    const next = createEmptyGrid(tile.steps, tracks.length);
+    for (let r = 0; r < tracks.length; r++) {
+      const tr = tracks[r];
       const p = tr.kind === 'drum' ? 0.22 : 0.12;
-      for (let s = 0; s < STEPS; s++) {
+      for (let s = 0; s < tile.steps; s++) {
         const downbeatBoost = s % 4 === 0 ? 1.35 : 1.0;
         next[r][s] = Math.random() < p * downbeatBoost;
       }
@@ -1196,11 +1488,13 @@
     renderTilesList();
     renderStartTileSelect();
     renderActiveTileHeader();
+    renderTileControls();
     renderTransitions();
     renderChainNodes();
     renderChainGraph();
     renderGrid();
     renderPlaybackStatus();
+    updateDroneState();
 
     // sync tempo inputs
     els.tempoRange.value = String(state.bpm);
@@ -1227,7 +1521,7 @@
     a.grid[0][8] = true;
     a.grid[1][4] = true;
     a.grid[1][12] = true;
-    for (let s = 0; s < STEPS; s += 2) a.grid[2][s] = true;
+    for (let s = 0; s < a.steps; s += 2) a.grid[2][s] = true;
 
     // variation in B
     b.grid[0][0] = true;
@@ -1235,7 +1529,7 @@
     b.grid[0][10] = true;
     b.grid[1][4] = true;
     b.grid[1][12] = true;
-    for (let s = 1; s < STEPS; s += 2) b.grid[2][s] = true;
+    for (let s = 1; s < b.steps; s += 2) b.grid[2][s] = true;
 
     state.tiles.push(a, b);
     state.startTileId = a.id;
@@ -1288,6 +1582,71 @@
         } else {
           renderAll();
         }
+      });
+    }
+
+    if (els.tileStepsInput) {
+      els.tileStepsInput.addEventListener('change', () => {
+        const tile = getActiveTile();
+        if (!tile) return;
+        const nextSteps = clampInt(els.tileStepsInput.value, 4, 64);
+        if (nextSteps === tile.steps) return;
+
+        const rows = DRUM_TRACKS.length + tile.channels.length;
+        const nextGrid = createEmptyGrid(nextSteps, rows);
+        for (let r = 0; r < rows; r++) {
+          for (let s = 0; s < Math.min(tile.steps, nextSteps); s++) {
+            nextGrid[r][s] = tile.grid[r]?.[s] ?? false;
+          }
+        }
+
+        tile.steps = nextSteps;
+        tile.grid = nextGrid;
+        stepIndex = 0;
+
+        renderAll();
+        scheduleUrlUpdate();
+      });
+    }
+
+    if (els.addChannelBtn) {
+      els.addChannelBtn.addEventListener('click', () => {
+        const tile = getActiveTile();
+        if (!tile) return;
+        tile.channels.push(createNoteChannel('C4', 'square'));
+        tile.grid.push(Array.from({ length: tile.steps }, () => false));
+        renderAll();
+        scheduleUrlUpdate();
+      });
+    }
+
+    if (els.droneEnabled) {
+      els.droneEnabled.addEventListener('change', () => {
+        const tile = getActiveTile();
+        if (!tile) return;
+        tile.drone.enabled = els.droneEnabled.checked;
+        updateDroneState();
+        scheduleUrlUpdate();
+      });
+    }
+
+    if (els.droneNote) {
+      els.droneNote.addEventListener('change', () => {
+        const tile = getActiveTile();
+        if (!tile) return;
+        tile.drone.note = els.droneNote.value;
+        updateDroneState();
+        scheduleUrlUpdate();
+      });
+    }
+
+    if (els.droneWaveform) {
+      els.droneWaveform.addEventListener('change', () => {
+        const tile = getActiveTile();
+        if (!tile) return;
+        tile.drone.waveform = els.droneWaveform.value;
+        updateDroneState();
+        scheduleUrlUpdate();
       });
     }
 
@@ -1351,10 +1710,14 @@
         bpm: 111,
         startTileId: null,
         activeTileId: null,
+        loopTileId: null,
         tiles: [createTile('X'), createTile('Y')],
       };
       before.startTileId = before.tiles[0].id;
       before.activeTileId = before.tiles[0].id;
+      before.tiles[0].steps = 12;
+      before.tiles[0].channels = [createNoteChannel('C4', 'sine')];
+      before.tiles[0].grid = createEmptyGrid(12, DRUM_TRACKS.length + 1);
 
       // seed random pattern
       before.tiles[0].grid[0][0] = true;
@@ -1372,8 +1735,8 @@
 
       console.assert(after.tiles.length === 2, 'decode tile count');
       console.assert(after.bpm === 111, 'decode bpm');
+      console.assert(after.tiles[0].steps === 12, 'steps preserved');
       console.assert(after.tiles[0].grid[0][0] === true, 'grid bit preserved');
-      console.assert(after.tiles[1].grid[2][3] === true, 'grid bit preserved');
 
       state = prevState;
 
@@ -1381,6 +1744,64 @@
     } catch (e) {
       console.warn('[SelfTest] failed', e);
     }
+  }
+
+  let droneOsc = null;
+  let droneGain = null;
+  let droneState = null;
+
+  function stopDrone() {
+    if (droneOsc) {
+      droneOsc.stop();
+      droneOsc.disconnect();
+      droneOsc = null;
+    }
+    if (droneGain) {
+      droneGain.disconnect();
+      droneGain = null;
+    }
+    droneState = null;
+  }
+
+  function updateDroneState() {
+    const tile = getActiveTile();
+    if (intervalId === null || !tile || !tile.drone.enabled) {
+      stopDrone();
+      return;
+    }
+
+    const nextState = {
+      tileId: tile.id,
+      note: tile.drone.note,
+      waveform: tile.drone.waveform,
+    };
+
+    if (
+      droneState &&
+      droneState.tileId === nextState.tileId &&
+      droneState.note === nextState.note &&
+      droneState.waveform === nextState.waveform
+    ) {
+      return;
+    }
+
+    stopDrone();
+    ensureAudio();
+    if (!audioCtx || !masterGain) return;
+
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = nextState.waveform;
+    osc.frequency.setValueAtTime(noteToFreq(nextState.note), audioCtx.currentTime);
+    gain.gain.value = 0.18;
+
+    osc.connect(gain);
+    gain.connect(masterGain);
+    osc.start();
+
+    droneOsc = osc;
+    droneGain = gain;
+    droneState = nextState;
   }
 
   function main() {

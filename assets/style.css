@@ -419,6 +419,68 @@ main {
   gap: 0.55rem;
 }
 
+.tile-controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border-radius: 16px;
+  border: 1px solid rgba(30, 41, 59, 0.09);
+  background: linear-gradient(180deg, #f8fafc, #eef2ff);
+  margin-bottom: 0.9rem;
+}
+
+.input {
+  border: 1px solid rgba(22, 25, 32, 0.16);
+  border-radius: 12px;
+  padding: 0.55rem 0.65rem;
+  font-size: 0.95rem;
+  background: #fff;
+}
+
+.field-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+}
+
+.drone-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.channels {
+  margin-bottom: 0.9rem;
+}
+
+.channels-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: 0.75rem;
+}
+
+.channel-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(140px, 1fr) minmax(140px, 1fr) auto;
+  gap: 0.6rem;
+  align-items: center;
+  padding: 0.6rem 0.7rem;
+  border-radius: 14px;
+  border: 1px solid rgba(30, 41, 59, 0.12);
+  background: rgba(148, 163, 184, 0.1);
+}
+
+.channel-row__label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
 .grid-mount {
   margin-bottom: 0.9rem;
 }
@@ -639,5 +701,10 @@ main {
 
   .chain-panel {
     min-height: 300px;
+  }
+
+  .channel-row {
+    grid-template-columns: 1fr;
+    justify-items: stretch;
   }
 }

@@ -74,6 +74,32 @@
           </div>
         </div>
 
+        <div class="tile-controls" aria-label="Tile controls">
+          <label class="field">
+            <span>Steps per tile</span>
+            <input id="tile-steps" class="input" type="number" min="4" max="64" step="1" />
+          </label>
+          <div class="field">
+            <span>Drone</span>
+            <div class="drone-controls">
+              <label class="field-inline">
+                <input id="drone-enabled" type="checkbox" />
+                <span>Enable</span>
+              </label>
+              <select id="drone-note" class="select"></select>
+              <select id="drone-waveform" class="select"></select>
+            </div>
+          </div>
+        </div>
+
+        <div class="channels">
+          <div class="panel-header">
+            <h2>Channels</h2>
+            <button id="add-channel" class="btn" type="button">+ Add channel</button>
+          </div>
+          <div id="channels-list" class="channels-list"></div>
+        </div>
+
         <div class="grid-mount" id="grid-mount"></div>
 
         <div class="transitions">
