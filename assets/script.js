@@ -405,7 +405,7 @@
       const isLooping = state.loopTileId === tile.id;
       els.loopTileBtn.disabled = false;
       els.loopTileBtn.classList.toggle('is-active', isLooping);
-      els.loopTileBtn.textContent = isLooping ? 'Stop looping' : 'Loop tile';
+      els.loopTileBtn.textContent = 'Play tile';
       els.loopTileBtn.setAttribute('aria-pressed', isLooping ? 'true' : 'false');
     }
   }
@@ -1235,8 +1235,13 @@
       els.loopTileBtn.addEventListener('click', () => {
         const tile = getActiveTile();
         if (!tile) return;
-        state.loopTileId = state.loopTileId === tile.id ? null : tile.id;
-        renderAll();
+        state.loopTileId = tile.id;
+        state.activeTileId = tile.id;
+        if (intervalId === null) {
+          startPlayback();
+        } else {
+          renderAll();
+        }
       });
     }
 
@@ -1248,7 +1253,10 @@
       scheduleUrlUpdate();
     });
 
-    els.playBtn.addEventListener('click', startPlayback);
+    els.playBtn.addEventListener('click', () => {
+      state.loopTileId = null;
+      startPlayback();
+    });
     els.stopBtn.addEventListener('click', stopPlayback);
 
     els.copyShareUrlBtn.addEventListener('click', copyShareUrl);
