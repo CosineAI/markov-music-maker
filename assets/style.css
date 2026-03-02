@@ -191,10 +191,14 @@ main {
 
 .app {
   display: grid;
-  grid-template-columns: minmax(260px, 320px) minmax(420px, 1fr) minmax(280px, 360px);
+  grid-template-columns: minmax(260px, 320px) minmax(420px, 1fr);
   gap: 1.2rem;
   align-items: stretch;
   height: 100%;
+}
+
+.chain-panel {
+  grid-column: 1 / -1;
 }
 
 .panel {
@@ -521,19 +525,33 @@ main {
   transform: translateX(-50%) translateY(-6px);
 }
 
-@media (max-width: 1200px) {
-  .app {
-    grid-template-columns: minmax(260px, 340px) minmax(360px, 1fr);
-  }
-
-  .chain-panel {
-    grid-column: 1 / -1;
-  }
-}
-
 @media (max-width: 950px) {
+  body {
+    overflow: auto;
+  }
+
+  main {
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+  }
+
   .app {
     grid-template-columns: 1fr;
+    height: auto;
+  }
+
+  .panel {
+    overflow: visible;
+  }
+
+  .tiles-panel,
+  .editor-panel {
+    min-height: 60vh;
+  }
+
+  .tiles-list {
+    min-height: 240px;
   }
 
   .editor-controls {
