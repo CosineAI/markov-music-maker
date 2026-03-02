@@ -1743,8 +1743,9 @@
     };
   }
 
- eV3(r, dec) {
+ function decodeStateV3(r, dec) {
     const bpm = r.u16();
+    const stepsPerBeat = LEGACY_STEPS_PER_BEAT;
     const trackCount = r.u8();
 
     if (trackCount <= 0 || trackCount > 255) throw new Error('Invalid track count');
@@ -1798,7 +1799,7 @@
         name,
         beats,
         drones: [drone],
-        grid: bytesToGrid(gridBytes, trackCount, steps),
+        grid: bytesToGrid(gridByteLen ? gridBytes : new Uint8Array(0), trackCount, steps),
         transitions: {},
       });
     }
@@ -1823,7 +1824,7 @@
     };
   }
 
-  function decodeStateV3(r, dec) {
+  function decodeStateV4(r, dec) {
     const bpm = r.u16();
     const stepsPerBeat = LEGACY_STEPS_PER_BEAT;
     const trackCount = r.u8();
@@ -1887,7 +1888,7 @@
         name,
         beats,
         drones,
-        grid: bytesToGrid(gridBytes, trackCount, steps),
+        grid: bytesToGrid(gridByteLen ? gridBytes : new Uint8Array(0), trackCount, steps),
         transitions: {},
       });
     }
