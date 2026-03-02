@@ -7,15 +7,11 @@
   <link rel="stylesheet" href="assets/style.css">
 </head>
 <body>
-  <header>
-    <h1>Markov Tile Sequencer</h1>
-  </header>
-
   <main>
     <div id="app" class="app">
-      <section class="panel tiles-panel" aria-label="Tiles">
+      <section class="panel tiles-panel" aria-label="Tile settings">
         <div class="panel-header">
-          <h2>Tiles</h2>
+          <h2>Tile settings</h2>
           <button id="create-tile" class="btn primary" type="button">+ New</button>
         </div>
 
@@ -49,10 +45,10 @@
         </div>
       </section>
 
-      <section class="panel editor-panel" aria-label="Editor">
+      <section class="panel editor-panel" aria-label="Tile details">
         <div class="panel-header split">
           <div>
-            <h2>Current tile</h2>
+            <h2>Tile details</h2>
             <div id="active-tile-badge" class="badge"></div>
           </div>
           <div class="small" id="active-tile-id"></div>
@@ -82,12 +78,19 @@
           <div id="transitions-list" class="transitions-list"></div>
         </div>
       </section>
+
+      <section class="panel chain-panel" aria-label="Markov chain">
+        <div class="panel-header">
+          <h2>Markov chain</h2>
+          <div class="small muted">Blocks show tiles, lines show weighted transitions.</div>
+        </div>
+        <div id="chain-graph" class="chain-graph">
+          <canvas id="chain-canvas" aria-label="Markov chain graph" role="img"></canvas>
+        </div>
+        <div id="chain-nodes" class="chain-nodes" aria-label="Tile blocks"></div>
+      </section>
     </div>
   </main>
-
-  <footer>
-    <p>Markov Tile Sequencer</p>
-  </footer>
 
   <script src="assets/script.js"></script>
 </body>
