@@ -3,16 +3,92 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>My Static Site</title>
+  <title>Markov Tile Sequencer</title>
   <link rel="stylesheet" href="assets/style.css">
 </head>
 <body>
+  <header>
+    <h1>Markov Tile Sequencer</h1>
+  </header>
+
   <main>
-    <h1>Welcome to Your Static Site</h1>
+    <div id="app" class="app">
+      <section class="panel tiles-panel" aria-label="Tiles">
+        <div class="panel-header">
+          <h2>Tiles</h2>
+          <button id="create-tile" class="btn primary" type="button">+ New</button>
+        </div>
+
+        <div id="tiles-list" class="tiles-list" role="listbox" aria-label="Tile list"></div>
+
+        <div class="tile-actions">
+          <button id="rename-tile" class="btn" type="button">Rename</button>
+          <button id="delete-tile" class="btn danger" type="button">Delete</button>
+        </div>
+
+        <div class="start-row">
+          <label class="field">
+            <span>Start tile</span>
+            <select id="start-tile-select" class="select"></select>
+          </label>
+        </div>
+
+        <div class="playback-controls">
+          <button id="play" class="btn primary" type="button">Play</button>
+          <button id="stop" class="btn" type="button">Stop</button>
+          <div id="playback-status" class="status" role="status" aria-live="polite" aria-atomic="true">Stopped</div>
+        </div>
+
+        <div class="share-controls">
+          <button id="copy-share-url" class="btn" type="button">Copy Share URL</button>
+          <button id="reset-all" class="btn" type="button">Reset</button>
+        </div>
+
+        <div class="hint">
+          Playback advances tile-by-tile at the end of each 16-step loop (Markov chain).
+        </div>
+      </section>
+
+      <section class="panel editor-panel" aria-label="Editor">
+        <div class="panel-header split">
+          <div>
+            <h2>Current tile</h2>
+            <div id="active-tile-badge" class="badge"></div>
+          </div>
+          <div class="small" id="active-tile-id"></div>
+        </div>
+
+        <div class="editor-controls" aria-label="Pattern controls">
+          <div class="tempo" aria-label="Tempo">
+            <label class="tempo__label" for="tempoRange">Tempo</label>
+            <input id="tempoRange" class="tempo__range" type="range" min="60" max="180" value="120" step="1" />
+            <input id="tempoNumber" class="tempo__number" type="number" min="40" max="240" value="120" step="1" aria-label="Tempo (BPM)" inputmode="numeric" />
+            <span class="tempo__unit">BPM</span>
+          </div>
+
+          <div class="editor-actions">
+            <button id="clear-pattern" class="btn" type="button">Clear tile</button>
+            <button id="randomize-pattern" class="btn" type="button">Random</button>
+          </div>
+        </div>
+
+        <div class="grid-mount" id="grid-mount"></div>
+
+        <div class="transitions">
+          <div class="panel-header">
+            <h2 id="transitions-title">Transitions</h2>
+          </div>
+          <div class="small muted">Weights are per-tile edges. Weight 0 means no edge. If all weights are 0, playback stays on the same tile.</div>
+          <div id="transitions-list" class="transitions-list"></div>
+        </div>
+      </section>
+    </div>
   </main>
+
   <footer>
-    <p>&copy; 2025 Your Name</p>
+    <p>Markov Tile Sequencer</p>
   </footer>
+
   <script src="assets/script.js"></script>
 </body>
 </html>
