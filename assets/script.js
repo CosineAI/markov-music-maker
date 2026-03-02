@@ -593,7 +593,6 @@
             <span>Beats per tile</span>
             <input id="tileBeats" class="input" type="number" min="1" max="${MAX_BEATS_PER_TILE}" value="${tile.beats}" />
           </label>
-          <div class="small muted">Total beats: ${tile.beats} (${steps} steps)</div>
         </div>
       </div>
     `;
