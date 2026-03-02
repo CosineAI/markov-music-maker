@@ -218,6 +218,10 @@ main {
 
 .editor-panel {
   grid-area: editor;
+  max-width: 980px;
+  width: min(100%, 980px);
+  min-width: 0;
+  justify-self: start;
 }
 
 .chain-panel {
@@ -408,6 +412,10 @@ main {
   margin-bottom: 0.9rem;
 }
 
+.transitions {
+  min-width: 0;
+}
+
 .transitions-list {
   display: flex;
   flex-direction: column;
@@ -489,7 +497,7 @@ main {
 
 .transition-row {
   display: grid;
-  grid-template-columns: 1fr 110px;
+  grid-template-columns: minmax(0, 1fr) 110px;
   align-items: center;
   gap: 0.6rem;
   padding: 0.6rem 0.7rem;
@@ -502,10 +510,13 @@ main {
   display: flex;
   flex-direction: column;
   gap: 0.1rem;
+  min-width: 0;
 }
 
 .transition-row__label .small {
   color: rgba(15, 23, 42, 0.6);
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .weight-input {

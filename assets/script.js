@@ -573,47 +573,32 @@
         const color = from.id === state.activeTileId ? `rgba(245, 158, 11, ${alpha})` : `rgba(37, 99, 235, ${alpha})`;
 
         if (i === j) {
-          const horizontalSpace = Math.min(fromPos.x - paddingX, width - paddingX - fromPos.x);
-          const loopWidth = Math.max(radius * 0.9, Math.min(radius * 2.2, horizontalSpace + radius * 0.4));
-          const maxLoopHeight = Math.max(24, centerY - paddingY - radius * 0.4);
-          const loopHeight = Math.max(26, Math.min(maxLoopHeight, radius * 2.2 + 12));
-
-          const startX = fromPos.x + radius * 0.35;
-          const startY = centerY - radius * 0.9;
-          const endX = fromPos.x - radius * 0.35;
-          const endY = centerY - radius * 0.9;
-          const topY = centerY - loopHeight;
+          const loopRadius = Math.min(radius * 1.1, maxArc - 6);
+          const loopCenterX = fromPos.x + radius * 0.9;
+          const loopCenterY = Math.max(paddingY + loopRadius + 6, centerY - loopRadius - radius * 0.6);
+          const startAngle = Math.PI * 0.2;
+          const endAngle = Math.PI * 1.85;
 
           ctx.strokeStyle = color;
           ctx.lineWidth = lineWidth;
           ctx.beginPath();
-          ctx.moveTo(startX, startY);
-          ctx.bezierCurveTo(
-            fromPos.x + loopWidth, topY + loopHeight * 0.35,
-            fromPos.x + loopWidth, topY,
-            fromPos.x, topY
-          );
-          ctx.bezierCurveTo(
-            fromPos.x - loopWidth, topY,
-            fromPos.x - loopWidth, topY + loopHeight * 0.35,
-            endX, endY
-          );
+          ctx.arc(loopCenterX, loopCenterY, loopRadius, startAngle, endAngle);
           ctx.stroke();
 
-          const tangentX = endX - (fromPos.x - loopWidth);
-          const tangentY = endY - (topY + loopHeight * 0.35);
-          const angle = Math.atan2(tangentY, tangentX);
-          const head = 5 + 3 * strength;
+          const arrowAngle = endAngle + Math.PI / 2;
+          const endX = loopCenterX + Math.cos(endAngle) * loopRadius;
+          const endY = loopCenterY + Math.sin(endAngle) * loopRadius;
+          const head = 5 + 4 * strength;
           ctx.fillStyle = color;
           ctx.beginPath();
           ctx.moveTo(endX, endY);
-          ctx.lineTo(endX - head * Math.cos(angle - 0.45), endY - head * Math.sin(angle - 0.45));
-          ctx.lineTo(endX - head * Math.cos(angle + 0.45), endY - head * Math.sin(angle + 0.45));
+          ctx.lineTo(endX - head * Math.cos(arrowAngle - 0.5), endY - head * Math.sin(arrowAngle - 0.5));
+          ctx.lineTo(endX - head * Math.cos(arrowAngle + 0.5), endY - head * Math.sin(arrowAngle + 0.5));
           ctx.closePath();
           ctx.fill();
 
           ctx.fillStyle = 'rgba(15, 23, 42, 0.7)';
-          ctx.fillText(String(weight), fromPos.x, topY - 8);
+          ctx.fillText(String(weight), loopCenterX, loopCenterY - loopRadius - 10);
           continue;
         }
 
