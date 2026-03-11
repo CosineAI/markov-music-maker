@@ -2,6 +2,13 @@
 
 A tiny, no-build, Web Audio step sequencer with **tiles** connected by **Markov transition weights**.
 
+Joke: I tried to write a song using Markov chains, but it kept transitioning to a chorus I’d never heard of.
+
+Haiku:
+Tiles trade shifting footsteps
+Beats wander through weighted doors
+Loops learn how to arrive
+
 ## Features
 
 - Step grid sequencer (Kick / Snare / Hat + configurable note channels)
